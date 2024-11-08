@@ -11,10 +11,12 @@ import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.AnyDirective
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.Directive
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.DirectiveStart
 import gov.nasa.ammos.aerie.procedural.timeline.plan.Plan
+import gov.nasa.ammos.aerie.procedural.timeline.plan.SimulationResults
 import gov.nasa.jpl.aerie.merlin.protocol.types.DurationType
 import gov.nasa.jpl.aerie.scheduler.DirectiveIdGenerator
 import gov.nasa.jpl.aerie.scheduler.model.*
 import gov.nasa.jpl.aerie.types.ActivityDirectiveId
+import java.lang.ref.WeakReference
 import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 import gov.nasa.ammos.aerie.procedural.timeline.plan.SimulationResults as TimelineSimResults
@@ -34,9 +36,18 @@ data class InMemoryEditablePlan(
   val totalDiff: List<Edit>
     get() = commits.flatMap { it.diff }
 
-  override fun latestResults() =
-    simulationFacade.latestSimulationData.getOrNull()
-      ?.let { MerlinToProcedureSimulationResultsAdapter(it.driverResults, false, plan) }
+  private var simResultsUpToDate: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>> = mutableSetOf()
+
+  override fun latestResults(): SimulationResults? {
+    val merlinResults = simulationFacade.latestSimulationData.getOrNull() ?: return null
+
+    // kotlin checks structural equality by default, not referential equality.
+    val isStale = merlinResults.plan.activities != plan.activities
+
+    val results = MerlinToProcedureSimulationResultsAdapter(merlinResults.driverResults, isStale, plan)
+    if (!isStale) simResultsUpToDate.add(WeakReference(results))
+    return results
+  }
 
   override fun create(directive: NewDirective): ActivityDirectiveId {
     class ParentSearchException(id: ActivityDirectiveId, size: Int): Exception("Expected one parent activity with id $id, found $size")
@@ -55,16 +66,27 @@ data class InMemoryEditablePlan(
     uncommittedChanges.add(Edit.Create(resolved))
     resolved.validateArguments(lookupActivityType)
     plan.add(resolved.toSchedulingActivity(lookupActivityType, true))
+
+    for (simResults in simResultsUpToDate) {
+      simResults.get()?.stale = true
+    }
+    // create a new list instead of `.clear` because commit objects have the same reference
+    simResultsUpToDate = mutableSetOf()
+
     return id
   }
 
   override fun commit() {
+    if (uncommittedChanges.isEmpty()) return
     val committedEdits = uncommittedChanges
     uncommittedChanges = mutableListOf()
-    commits.add(Commit(committedEdits))
+    commits.add(Commit(committedEdits, simResultsUpToDate))
   }
 
   override fun rollback(): List<Edit> {
+    // Early return if there are no changes, to keep staleness accuracy
+    if (uncommittedChanges.isEmpty()) return emptyList()
+
     val result = uncommittedChanges
     uncommittedChanges = mutableListOf()
     for (edit in result) {
@@ -74,6 +96,13 @@ data class InMemoryEditablePlan(
         }
       }
     }
+    for (simResult in simResultsUpToDate) {
+      simResult.get()?.stale = true
+    }
+    for (simResult in commits.last().simResultsUpToDate) {
+      simResult.get()?.stale = false
+    }
+    simResultsUpToDate = commits.last().simResultsUpToDate
     return result
   }
 
