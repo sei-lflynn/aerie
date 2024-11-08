@@ -21,6 +21,31 @@ import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 import gov.nasa.ammos.aerie.procedural.timeline.plan.SimulationResults as TimelineSimResults
 
+/**
+ * An implementation of [EditablePlan] that stores the plan in memory for use in the internal scheduler.
+ *
+ * ## Staleness checking
+ *
+ * The editable plan instance keeps track of sim results that it has produced using weak references, and can dynamically
+ * update their staleness if the plan is changed after it was simulated. The process is this:
+ *
+ * 1. [InMemoryEditablePlan] has a set of weak references to simulation results objects that are currently up-to-date.
+ *    I used weak references because if the user can't access it anymore, staleness doesn't matter and we might as well
+ *    let it get gc'ed.
+ * 2. When the user gets simulation results, either through simulation or by getting the latest, it always checks for
+ *    plan equality between the returned results and the current plan, even if we just simulated. If it is up-to-date, a
+ *    weak ref is added to the set.
+ * 3. When an edit is made, the sim results in the current set are marked stale; then the set is reset to new reference
+ *    to an empty set.
+ * 4. When a commit is made, the commit object takes *shared ownership* of the set. If a new simulation is run (step 2)
+ *    the plan can still add to the set while it is still jointly owned by the commit. Then when an edit is made (step 3)
+ *    the commit will become the sole owner of the set.
+ * 5. When changes are rolled back, any sim results currently in the plan's set are marked stale, the previous commit's
+ *    sim results are marked not stale, then the plan will resume joint ownership of the previous commit's set.
+ *
+ * The joint ownership freaks me out a wee bit, but I think it's safe because the commits are only used to keep the
+ * previous sets from getting gc'ed in the event of a rollback. Only the plan object actually mutates the set.
+ */
 data class InMemoryEditablePlan(
     private val missionModel: MissionModel<*>,
     private var idGenerator: DirectiveIdGenerator,
@@ -36,6 +61,7 @@ data class InMemoryEditablePlan(
   val totalDiff: List<Edit>
     get() = commits.flatMap { it.diff }
 
+  // Jointly owned set of up-to-date simulation results. See class-level comment for algorithm explanation.
   private var simResultsUpToDate: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>> = mutableSetOf()
 
   override fun latestResults(): SimulationResults? {
@@ -77,9 +103,15 @@ data class InMemoryEditablePlan(
   }
 
   override fun commit() {
+    // Early return if there are no changes. This prevents multiple commits from sharing ownership of the set,
+    // because new sets are only created when edits are made.
+    // Probably unnecessary, but shared ownership freaks me out enough already.
     if (uncommittedChanges.isEmpty()) return
+
     val committedEdits = uncommittedChanges
     uncommittedChanges = mutableListOf()
+
+    // Create a commit that shares ownership of the simResults set.
     commits.add(Commit(committedEdits, simResultsUpToDate))
   }
 
