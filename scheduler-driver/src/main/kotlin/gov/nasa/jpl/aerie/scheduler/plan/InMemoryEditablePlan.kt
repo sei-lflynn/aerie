@@ -54,12 +54,25 @@ data class InMemoryEditablePlan(
     private val lookupActivityType: (String) -> ActivityType
 ) : EditablePlan, Plan by plan {
 
-  private val commits = mutableListOf<Commit>()
+  private data class Commit(
+    val diff: List<Edit>,
+
+    /**
+     * A record of the simulation results objects that were up-to-date when the commit
+     * was created.
+     *
+     * This has SHARED OWNERSHIP with [InMemoryEditablePlan]; the editable plan may add more to
+     * this list AFTER the commit is created.
+     */
+    val upToDateSimResultsSet: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>>
+  )
+
+  private var committedChanges = Commit(listOf(), mutableSetOf())
   var uncommittedChanges = mutableListOf<Edit>()
     private set
 
   val totalDiff: List<Edit>
-    get() = commits.flatMap { it.diff }
+    get() = committedChanges.diff
 
   // Jointly owned set of up-to-date simulation results. See class-level comment for algorithm explanation.
   private var upToDateSimResultsSet: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>> = mutableSetOf()
@@ -108,11 +121,11 @@ data class InMemoryEditablePlan(
     // Probably unnecessary, but shared ownership freaks me out enough already.
     if (uncommittedChanges.isEmpty()) return
 
-    val committedEdits = uncommittedChanges
+    val newCommittedChanges = uncommittedChanges
     uncommittedChanges = mutableListOf()
 
     // Create a commit that shares ownership of the simResults set.
-    commits.add(Commit(committedEdits, upToDateSimResultsSet))
+    committedChanges = Commit(committedChanges.diff + newCommittedChanges, upToDateSimResultsSet)
   }
 
   override fun rollback(): List<Edit> {
@@ -131,10 +144,10 @@ data class InMemoryEditablePlan(
     for (simResult in upToDateSimResultsSet) {
       simResult.get()?.stale = true
     }
-    for (simResult in commits.last().upToDateSimResultsSet) {
+    for (simResult in committedChanges.upToDateSimResultsSet) {
       simResult.get()?.stale = false
     }
-    upToDateSimResultsSet = commits.last().upToDateSimResultsSet
+    upToDateSimResultsSet = committedChanges.upToDateSimResultsSet
     return result
   }
 
