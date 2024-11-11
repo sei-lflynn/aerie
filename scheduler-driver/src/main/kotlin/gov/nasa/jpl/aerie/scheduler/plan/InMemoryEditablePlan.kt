@@ -21,7 +21,7 @@ import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
 import gov.nasa.ammos.aerie.procedural.timeline.plan.SimulationResults as TimelineSimResults
 
-/**
+/*
  * An implementation of [EditablePlan] that stores the plan in memory for use in the internal scheduler.
  *
  * ## Staleness checking
@@ -62,7 +62,7 @@ data class InMemoryEditablePlan(
     get() = commits.flatMap { it.diff }
 
   // Jointly owned set of up-to-date simulation results. See class-level comment for algorithm explanation.
-  private var simResultsUpToDate: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>> = mutableSetOf()
+  private var upToDateSimResultsSet: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>> = mutableSetOf()
 
   override fun latestResults(): SimulationResults? {
     val merlinResults = simulationFacade.latestSimulationData.getOrNull() ?: return null
@@ -71,7 +71,7 @@ data class InMemoryEditablePlan(
     val isStale = merlinResults.plan.activities != plan.activities
 
     val results = MerlinToProcedureSimulationResultsAdapter(merlinResults.driverResults, isStale, plan)
-    if (!isStale) simResultsUpToDate.add(WeakReference(results))
+    if (!isStale) upToDateSimResultsSet.add(WeakReference(results))
     return results
   }
 
@@ -93,11 +93,11 @@ data class InMemoryEditablePlan(
     resolved.validateArguments(lookupActivityType)
     plan.add(resolved.toSchedulingActivity(lookupActivityType, true))
 
-    for (simResults in simResultsUpToDate) {
+    for (simResults in upToDateSimResultsSet) {
       simResults.get()?.stale = true
     }
     // create a new list instead of `.clear` because commit objects have the same reference
-    simResultsUpToDate = mutableSetOf()
+    upToDateSimResultsSet = mutableSetOf()
 
     return id
   }
@@ -112,7 +112,7 @@ data class InMemoryEditablePlan(
     uncommittedChanges = mutableListOf()
 
     // Create a commit that shares ownership of the simResults set.
-    commits.add(Commit(committedEdits, simResultsUpToDate))
+    commits.add(Commit(committedEdits, upToDateSimResultsSet))
   }
 
   override fun rollback(): List<Edit> {
@@ -128,13 +128,13 @@ data class InMemoryEditablePlan(
         }
       }
     }
-    for (simResult in simResultsUpToDate) {
+    for (simResult in upToDateSimResultsSet) {
       simResult.get()?.stale = true
     }
-    for (simResult in commits.last().simResultsUpToDate) {
+    for (simResult in commits.last().upToDateSimResultsSet) {
       simResult.get()?.stale = false
     }
-    simResultsUpToDate = commits.last().simResultsUpToDate
+    upToDateSimResultsSet = commits.last().upToDateSimResultsSet
     return result
   }
 

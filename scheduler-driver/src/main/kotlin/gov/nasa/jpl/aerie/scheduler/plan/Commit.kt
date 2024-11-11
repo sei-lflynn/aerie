@@ -13,5 +13,5 @@ data class Commit(
    * This has SHARED OWNERSHIP with [InMemoryEditablePlan]; the editable plan may add more to
    * this list AFTER the commit is created.
    */
-  val simResultsUpToDate: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>>
+  val upToDateSimResultsSet: MutableSet<WeakReference<MerlinToProcedureSimulationResultsAdapter>>
 )
