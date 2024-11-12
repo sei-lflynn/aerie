@@ -18,7 +18,7 @@ import kotlin.jvm.optionals.getOrNull
 
 class MerlinToProcedureSimulationResultsAdapter(
     private val results: gov.nasa.jpl.aerie.merlin.driver.SimulationResults,
-    private val stale: Boolean,
+    var stale: Boolean,
     private val plan: Plan
 ): SimulationResults {
 
