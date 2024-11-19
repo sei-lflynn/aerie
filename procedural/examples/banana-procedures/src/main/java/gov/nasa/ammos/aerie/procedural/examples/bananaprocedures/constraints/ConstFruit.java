@@ -1,4 +1,4 @@
-package gov.nasa.ammos.aerie.procedural.examples.fooprocedures.constraints;
+package gov.nasa.ammos.aerie.procedural.examples.bananaprocedures.constraints;
 
 import gov.nasa.ammos.aerie.procedural.constraints.GeneratorConstraint;
 import gov.nasa.ammos.aerie.procedural.constraints.Violations;

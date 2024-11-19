@@ -1,4 +1,4 @@
-# foo-procedures
+# banana-procedures
 
 This is a project for test examples. It does provide valid examples
 of goals and constraints, but they aren't particularly helpful for users.
@@ -9,5 +9,5 @@ At repo top level:
 
 ```bash
 ./gradlew build
-./gradlew :procedural:examples:foo-procedures:buildAllSchedulingProcedureJars
+./gradlew :procedural:examples:banana-procedures:buildAllSchedulingProcedureJars
 ```

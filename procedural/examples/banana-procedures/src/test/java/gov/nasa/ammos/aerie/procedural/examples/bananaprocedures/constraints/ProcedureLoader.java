@@ -1,4 +1,4 @@
-package gov.nasa.ammos.aerie.procedural.examples.fooprocedures.constraints;
+package gov.nasa.ammos.aerie.procedural.examples.bananaprocedures.constraints;
 
 import gov.nasa.jpl.aerie.merlin.protocol.model.MerlinPlugin;
 import gov.nasa.ammos.aerie.procedural.constraints.Constraint;

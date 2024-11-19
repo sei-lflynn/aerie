@@ -1,4 +1,4 @@
-package gov.nasa.ammos.aerie.procedural.examples.fooprocedures.procedures;
+package gov.nasa.ammos.aerie.procedural.examples.bananaprocedures.procedures;
 
 import gov.nasa.jpl.aerie.merlin.protocol.types.Duration;
 import gov.nasa.jpl.aerie.merlin.protocol.types.SerializedValue;
