@@ -421,6 +421,8 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     final var ids = new HashMap<ActivityDirectiveId, ActivityDirectiveId>();
     //creation are done in batch as that's what the scheduler does the most
     final var toAdd = new ArrayList<SchedulingActivity>();
+    final var toDelete = new ArrayList<ActivityDirectiveId>();
+    final var toModify = new ArrayList<SchedulingActivity>();
     for (final var activity : plan.getActivities()) {
       if(activity.getParentActivity().isPresent()) continue; // Skip generated activities
       if (!activity.isNew()) {
@@ -440,8 +442,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
             activity.anchoredToStart()
         );
         if (!activityDirectiveFromSchedulingDirective.equals(actFromInitialPlan.get())) {
-          throw new MerlinServiceException("The scheduler should not be updating activity instances");
-          //updateActivityDirective(planId, schedulerActIntoMerlinAct, activityDirectiveId, activityToGoalId.get(activity));
+          toModify.add(activity);
         }
         ids.put(activity.id(), activity.id());
       } else {
@@ -452,13 +453,14 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     final var actsFromNewPlan = plan.getActivitiesById();
     for (final var idInInitialPlan : initialPlan.getActivitiesById().keySet()) {
       if (!actsFromNewPlan.containsKey(idInInitialPlan)) {
-        throw new MerlinServiceException("The scheduler should not be deleting activity instances");
-        //deleteActivityDirective(idActInInitialPlan.getValue());
+        toDelete.add(idInInitialPlan);
       }
     }
 
     //Create
     ids.putAll(createActivityDirectives(planId, toAdd, activityToGoalId, schedulerModel));
+    modifyActivityDirectives(planId, toModify);
+    deleteActivityDirectives(planId, toDelete);
     return ids;
   }
 
@@ -554,7 +556,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     return createActivityDirectives(planId, plan.getActivitiesByTime(), activityToGoalId, schedulerModel);
   }
 
-  public Map<ActivityDirectiveId, ActivityDirectiveId> createActivityDirectives(
+  private Map<ActivityDirectiveId, ActivityDirectiveId> createActivityDirectives(
       final PlanId planId,
       final List<SchedulingActivity> orderedActivities,
       final Map<SchedulingActivity, GoalId> activityToGoalId,
@@ -635,6 +637,66 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     }
     return activityToDirectiveId;
   }
+
+  private void modifyActivityDirectives(
+      final PlanId planId,
+      final List<SchedulingActivity> activities
+  )
+  throws IOException, NoSuchPlanException, MerlinServiceException
+  {
+    if (activities.isEmpty()) return;
+    ensurePlanExists(planId);
+    final var request = new StringBuilder();
+    request.append("mutation updatePlanActivityDirectives(");
+    request.append(String.join(
+        ",",
+        activities.stream().map($ -> "$activity_%d: activity_directive_set_input!".formatted($.id().id())).toList()
+    ));
+    request.append(") {");
+    final var arguments = Json.createObjectBuilder();
+    for (final var act : activities) {
+      final var id = act.id().id();
+      request.append("""
+                         update_%d: update_activity_directive_by_pk(pk_columns: {id: %d, plan_id: %d}, _set: $activity_%d) {
+                           affected_rows
+                         }
+                         """.formatted(id, id, planId.id(), id));
+
+      final var activityObject = Json
+          .createObjectBuilder()
+          .add("start_offset", act.startOffset().toString())
+          .add("anchored_to_start", act.anchoredToStart())
+          .add("name", act.name());
+
+      final var insertionObjectArguments = Json.createObjectBuilder();
+      for (final var arg : act.arguments().entrySet()) {
+        insertionObjectArguments.add(arg.getKey(), serializedValueP.unparse(arg.getValue()));
+      }
+      activityObject.add("arguments", insertionObjectArguments.build());
+      arguments.add("activity_%d".formatted(id), activityObject);
+    }
+    postRequest(request.toString(), arguments.build()).orElseThrow(() -> new NoSuchPlanException(planId));
+  }
+
+  private void deleteActivityDirectives(
+      final PlanId planId,
+      final List<ActivityDirectiveId> ids
+  )
+  throws IOException, NoSuchPlanException, MerlinServiceException
+  {
+    if (ids.isEmpty()) return;
+    ensurePlanExists(planId);
+    final var request = new StringBuilder();
+    request.append("mutation deletePlanActivityDirectives {");
+    for (final var id : ids) {
+      request.append("""
+                         delete_%d: delete_activity_directive_by_pk(id: %d, plan_id: %d) {affected_rows}
+                         """.formatted(id.id(), id.id(), planId.id()));
+    }
+    request.append("}");
+    postRequest(request.toString()).orElseThrow(() -> new NoSuchPlanException(planId));
+  }
+
 
   @Override
   public MerlinDatabaseService.MissionModelTypes getMissionModelTypes(final PlanId planId)

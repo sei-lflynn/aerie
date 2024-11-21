@@ -20,7 +20,9 @@ public record Plan(
           json.getString("type"),
           json.getString("startOffset"),
           json.getJsonObject("arguments"),
-          json.getString("name")
+          json.getString("name"),
+          json.isNull("anchorId") ? null : json.getInt("anchorId"),
+          json.getBoolean("anchoredToStart")
       );
     }
   }
