@@ -47,7 +47,8 @@ data class InMemoryEditablePlan(
     simulationFacade.simulateWithResults(plan, options.pause.resolve(this))
   }
 
-  override fun validateArguments(directive: Directive<AnyDirective>) {
+  override fun validate(directive: Directive<AnyDirective>) {
+    super.validate(directive)
     lookupActivityType(directive.type).specType.inputType.validateArguments(directive.inner.arguments)
   }
 

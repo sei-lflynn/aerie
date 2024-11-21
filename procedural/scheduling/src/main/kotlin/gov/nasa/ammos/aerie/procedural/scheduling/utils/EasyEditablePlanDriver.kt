@@ -97,11 +97,20 @@ abstract class EasyEditablePlanDriver(
   protected abstract fun simulateInternal(options: SimulateOptions)
 
   /**
-   * Optional validation hook for new activities. The default implementation does nothing.
+   * Optional validation hook for new activities.
    *
-   * Implementor should throw if the arguments are invalid.
+   * The default implementation checks if the activity is within the bounds of the plan. The implementor can
+   * add additional checks by overriding this method and calling `super.validate(directive)`. Implementor
+   * should throw if the directive is invalid.
    */
-  protected open fun validateArguments(directive: Directive<AnyDirective>) {}
+  protected open fun validate(directive: Directive<AnyDirective>) {
+    if (directive.startTime > duration()) {
+      throw Exception("New activity with id ${directive.id.id()} would start after the end of the plan")
+    }
+    if (directive.start is DirectiveStart.Absolute && directive.startTime.isNegative) {
+      throw Exception("New activity with id ${directive.id.id()} would start before the beginning of the plan")
+    }
+  }
 
   private data class Commit(
     val diff: Set<Edit>,
@@ -153,7 +162,7 @@ abstract class EasyEditablePlanDriver(
     val resolved = directive.resolve(id, parent)
     uncommittedChanges.add(Edit.Create(resolved))
 
-    validateArguments(resolved)
+    validate(resolved)
 
     createInternal(resolved)
 
