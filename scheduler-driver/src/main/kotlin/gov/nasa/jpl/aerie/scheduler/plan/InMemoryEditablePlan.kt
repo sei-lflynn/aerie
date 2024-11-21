@@ -43,7 +43,6 @@ data class InMemoryEditablePlan(
     plan.remove(plan.activitiesById[id])
   }
 
-
   override fun simulateInternal(options: SimulateOptions) {
     simulationFacade.simulateWithResults(plan, options.pause.resolve(this))
   }
@@ -51,12 +50,6 @@ data class InMemoryEditablePlan(
   override fun validateArguments(directive: Directive<AnyDirective>) {
     lookupActivityType(directive.type).specType.inputType.validateArguments(directive.inner.arguments)
   }
-
-  // These cannot be implemented with the by keyword,
-  // because directives() below needs a custom implementation.
-  override fun totalBounds() = plan.totalBounds()
-  override fun toRelative(abs: Instant) = plan.toRelative(abs)
-  override fun toAbsolute(rel: Duration) = plan.toAbsolute(rel)
 
   companion object {
     @JvmStatic fun Directive<AnyDirective>.toSchedulingActivity(lookupActivityType: (String) -> ActivityType, isNew: Boolean) = SchedulingActivity(
