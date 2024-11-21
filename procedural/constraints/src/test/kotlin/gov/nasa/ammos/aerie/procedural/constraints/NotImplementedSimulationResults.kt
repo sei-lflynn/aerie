@@ -1,6 +1,7 @@
 package gov.nasa.ammos.aerie.procedural.constraints
 
 import gov.nasa.ammos.aerie.procedural.timeline.Interval
+import gov.nasa.ammos.aerie.procedural.timeline.collections.Directives
 import gov.nasa.ammos.aerie.procedural.timeline.collections.Instances
 import gov.nasa.ammos.aerie.procedural.timeline.ops.SerialSegmentOps
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.Segment
@@ -15,4 +16,5 @@ open class NotImplementedSimulationResults: SimulationResults {
     deserializer: (List<Segment<SerializedValue>>) -> TL
   ): TL = TODO()
   override fun <A : Any> instances(type: String?, deserializer: (SerializedValue) -> A): Instances<A> = TODO()
+  override fun <A : Any> inputDirectives(deserializer: (SerializedValue) -> A) = TODO()
 }
