@@ -1,6 +1,11 @@
 # Would prefer to do this as one file that delegates to others, as was done with init.sql
 # but doing so currently throws an error: "parse-failed: parsing Object failed, expected Object, but encountered Array"
 
+####################
+#### MIGRATIONS ####
+####################
+- "!include migrations/applied_migrations_view.yaml"
+
 #####################
 #### PERMISSIONS ####
 #####################
