@@ -48,7 +48,7 @@ data class SchedulerToProcedurePlanAdapter(
       result.add(
           Directive(
               deserializer(SerializedValue.of(activity.arguments)),
-              "Name unavailable",
+              activity.name,
               activity.id,
               activity.type.name,
               if (activity.anchorId == null) DirectiveStart.Absolute(activity.startOffset)
