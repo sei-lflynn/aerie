@@ -26,13 +26,7 @@ public abstract class ProceduralSchedulingSetup {
 
   // Cross-Test Constants
   protected final String planStartTimestamp = "2023-01-01T00:00:00+00:00";
-  protected final String recurrenceGoalDefinition =
-      """
-      export default function myGoal() {
-        return Goal.ActivityRecurrenceGoal({
-          activityTemplate: ActivityTemplates.PeelBanana({peelDirection: 'fromStem'}),
-          interval: Temporal.Duration.from({hours:1})
-      })}""";
+
 
   @BeforeAll
   void beforeAll() {

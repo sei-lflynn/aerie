@@ -12,7 +12,16 @@ public record Plan(
     int revision,
     List<ActivityDirective> activityDirectives
 ) {
-  public record ActivityDirective(int id, int planId, String type, String startOffset, JsonObject arguments, String name) {
+  public record ActivityDirective(
+      int id,
+      int planId,
+      String type,
+      String startOffset,
+      JsonObject arguments,
+      String name,
+      Integer anchorId,
+      boolean anchoredToStart
+  ) {
     public static ActivityDirective fromJSON(JsonObject json){
       return new ActivityDirective(
           json.getInt("id"),
