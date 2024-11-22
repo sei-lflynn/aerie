@@ -126,8 +126,13 @@ abstract class EasyEditablePlanDriver(
   )
 
   private var committedChanges = Commit(setOf(), mutableSetOf())
-  var uncommittedChanges = mutableListOf<Edit>()
+  private var uncommittedChanges = mutableListOf<Edit>()
 
+  /** Whether there are uncommitted changes. */
+  val isDirty
+    get() = uncommittedChanges.isNotEmpty()
+
+  /** The total reduced set of changes made to the plan. */
   val totalDiff: Set<Edit>
     get() = committedChanges.diff
 

@@ -37,6 +37,8 @@ interface SimulationResults {
   /** Queries all activity instances, deserializing them as [AnyInstance]. **/
   fun instances() = instances(null, AnyInstance.deserializer())
 
+  /** The input directives that were used for this simulation. */
   fun <A: Any> inputDirectives(deserializer: (SerializedValue) -> A): Directives<A>
+  /** The input directives that were used for this simulation, deserialized as [AnyDirective]. */
   fun inputDirectives() = inputDirectives(AnyDirective.deserializer())
 }
