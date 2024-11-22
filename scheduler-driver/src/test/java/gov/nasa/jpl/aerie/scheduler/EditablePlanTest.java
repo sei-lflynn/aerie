@@ -198,4 +198,35 @@ public class EditablePlanTest {
 
     assertFalse(simResults.isStale());
   }
+
+  @Test
+  void simulationInputDirectivesDontChange() {
+    plan.create(
+        "BiteBanana",
+        new DirectiveStart.Absolute(Duration.MINUTE),
+        Map.of("biteSize", SerializedValue.of(1))
+    );
+
+    final var expectedDirectives = plan.directives();
+    final var simResults = plan.simulate();
+
+    plan.create(
+        "GrowBanana",
+        new DirectiveStart.Absolute(Duration.HOUR),
+        Map.of(
+            "growingDuration", SerializedValue.of(10000),
+            "quantity", SerializedValue.of(1)
+        )
+    );
+
+    assertIterableEquals(expectedDirectives, simResults.inputDirectives());
+    assertNotEquals(plan.directives(), simResults.inputDirectives());
+
+    plan.commit();
+
+    assertIterableEquals(expectedDirectives, simResults.inputDirectives());
+    assertNotEquals(plan.directives(), simResults.inputDirectives());
+
+    assertIterableEquals(plan.directives(), plan.simulate().inputDirectives());
+  }
 }
