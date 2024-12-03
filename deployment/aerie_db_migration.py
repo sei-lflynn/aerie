@@ -24,13 +24,30 @@ def exit_with_error(message: str, exit_code=1):
 
 # internal class
 class DB_Migration:
+  """
+  Container class for Migration steps to be applied/reverted.
+  """
   steps = []
-  db_name = ''
-  def __init__(self, db_name):
-    self.db_name = db_name
+  migrations_folder = ''
+  def __init__(self, migrations_folder: str, reverse: bool):
+    """
+    :param migrations_folder: Folder where the migrations are stored.
+    :param reverse: If true, reverses the list of migration steps.
+    """
+    self.migrations_folder = migrations_folder
+    try:
+      for root, dirs, files in os.walk(migrations_folder):
+        if dirs:
+          self.add_migration_step(dirs)
+    except FileNotFoundError as fne:
+      exit_with_error(str(fne).split("]")[1])
+    if len(self.steps) <= 0:
+      exit_with_error("No database migrations found.")
+    if reverse:
+      self.steps.reverse()
 
   def add_migration_step(self, _migration_step):
-    self.steps = sorted(_migration_step, key=lambda x:int(x.split('_')[0]))
+    self.steps = sorted(_migration_step, key=lambda x: int(x.split('_')[0]))
 
 def step_by_step_migration(db_migration, apply):
   display_string = "\n\033[4mMIGRATION STEPS AVAILABLE:\033[0m\n"
@@ -49,14 +66,16 @@ def step_by_step_migration(db_migration, apply):
       input("Press Enter to continue...")
       return
 
+    folder = os.path.join(db_migration.migrations_folder, f'{split[0]}_{split[1]}')
     if apply:
-      if (len(split) == 4) or (not os.path.isfile(f'migrations/{db_migration.db_name}/{split[0]}_{split[1]}/up.sql')):
+      # If there are four words, they must be "<NUMBER> <MIGRATION NAME> Present Present"
+      if (len(split) == 4 and "Present" == split[-1]) or (not os.path.isfile(os.path.join(folder, 'up.sql'))):
         available_steps.remove(f'{split[0]}_{split[1]}')
       else:
         display_string += _output[i] + "\n"
     else:
-      if (len(split) == 5 and "Not Present" == (split[3] + " " + split[4])) \
-          or (not os.path.isfile(f'migrations/{db_migration.db_name}/{split[0]}_{split[1]}/down.sql')):
+      # If there are only five words, they must be "<NUMBER> <MIGRATION NAME> Present Not Present"
+      if (len(split) == 5 and "Not Present" == (split[-2] + " " + split[-1])) or (not os.path.isfile(os.path.join(folder, 'down.sql'))):
         available_steps.remove(f'{split[0]}_{split[1]}')
       else:
         display_string += _output[i] + "\n"
@@ -189,20 +208,10 @@ def main():
   HASURA_PATH = "./hasura"
   if args.hasura_path:
     HASURA_PATH = args.hasura_path
-  MIGRATION_PATH = HASURA_PATH+"/migrations/Aerie"
+  MIGRATION_PATH = os.path.abspath(HASURA_PATH+"/migrations/Aerie")
 
   # Find all migration folders for the database
-  migration = DB_Migration("Aerie")
-  try:
-    for root,dirs,files in os.walk(MIGRATION_PATH):
-      if dirs:
-        migration.add_migration_step(dirs)
-  except FileNotFoundError as fne:
-    print("\033[91mError\033[0m:"+ str(fne).split("]")[1])
-    sys.exit(1)
-  if len(migration.steps) <= 0:
-    print("\033[91mError\033[0m: No database migrations found.")
-    sys.exit(1)
+  migration = DB_Migration("Aerie", MIGRATION_PATH)
 
   # If reverting, reverse the list
   if args.revert:
