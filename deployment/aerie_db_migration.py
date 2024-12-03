@@ -167,11 +167,12 @@ def mark_current_version(username, password, netloc):
 
   return current_schema
 
-def main():
+def createArgsParser() -> argparse.ArgumentParser:
   # Create a cli parser
   parser = argparse.ArgumentParser(description=__doc__)
+
   # Applying and Reverting are exclusive arguments
-  exclusive_args = parser.add_mutually_exclusive_group(required='true')
+  exclusive_args = parser.add_mutually_exclusive_group(required=True)
 
   # Add arguments
   exclusive_args.add_argument(
@@ -202,8 +203,10 @@ def main():
     help="the network location of the database. defaults to localhost",
     default='localhost')
 
+  return parser
+def main():
   # Generate arguments
-  args = parser.parse_args()
+  args = migrateArgsParser().parse_args()
 
   HASURA_PATH = "./hasura"
   if args.hasura_path:
