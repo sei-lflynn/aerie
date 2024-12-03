@@ -11,6 +11,17 @@ import psycopg
 def clear_screen():
   os.system('cls' if os.name == 'nt' else 'clear')
 
+
+def exit_with_error(message: str, exit_code=1):
+  """
+  Exit the program with the specified error message and exit code.
+
+  :param message: Error message to display before exiting.
+  :param exit_code: Error code to exit with. Defaults to 1.
+  """
+  print("\033[91mError\033[0m: "+message)
+  sys.exit(exit_code)
+
 # internal class
 class DB_Migration:
   steps = []
