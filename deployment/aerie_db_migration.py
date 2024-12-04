@@ -408,7 +408,8 @@ def main():
   clear_screen()
   print(f'\n###############################'
         f'\nAERIE DATABASE MIGRATION HELPER'
-        f'\n###############################')
+        f'\n###############################'
+        f'\n\nMigrating database at {hasura.endpoint}')
   # Enter step-by-step mode if not otherwise specified
   if not args.all:
     # Find all migration folders for the database
