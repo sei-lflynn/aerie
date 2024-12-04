@@ -7,6 +7,7 @@ import sys
 import shutil
 import subprocess
 import psycopg
+from dotenv import load_dotenv
 
 def clear_screen():
   os.system('cls' if os.name == 'nt' else 'clear')
@@ -167,7 +168,58 @@ def mark_current_version(username, password, netloc):
 
   return current_schema
 
+def loadConfigFile(endpoint: str, secret: str, config_folder: str) -> (str, str):
+  """
+  Extract the endpoint and admin secret from a Hasura config file.
+  Values passed as arguments take priority over the contents of the config file.
+
+  :param endpoint: Initial value of the endpoint for Hasura. Will be extracted if empty.
+  :param secret: Initial value of the admin secret for Hasura. Will be extracted if empty.
+  :param config_folder: Folder to look for the config file in.
+  :return: A tuple containing the Hasura endpoint and the Hasura admin secret.
+  """
+  hasura_endpoint = endpoint
+  hasura_admin_secret = secret
+
+  # Check if config.YAML exists
+  configPath = os.path.join(config_folder, 'config.yaml')
+  if not os.path.isfile(configPath):
+    # Check for .YML
+    configPath = os.path.join(config_folder, 'config.yml')
+    if not os.path.isfile(configPath):
+      errorMsg = "HASURA_GRAPHQL_ENDPOINT and HASURA_GRAPHQL_ADMIN_SECRET" if not endpoint and not secret \
+        else "HASURA_GRAPHQL_ENDPOINT" if not endpoint \
+        else "HASURA_GRAPHQL_ADMIN_SECRET"
+      errorMsg += " must be defined by either environment variables or in a config.yaml located in " + config_folder + "."
+      exit_with_error(errorMsg)
+
+  # Extract admin secret and/or endpoint from the config.yaml, if they were not already set
+  with open(configPath) as configFile:
+    for line in configFile:
+      if hasura_endpoint and hasura_admin_secret:
+        break
+      line = line.strip()
+      if line.startswith("endpoint") and not hasura_endpoint:
+        hasura_endpoint = line.removeprefix("endpoint:").strip()
+        continue
+      if line.startswith("admin_secret") and not hasura_admin_secret:
+        hasura_admin_secret = line.removeprefix("admin_secret:").strip()
+        continue
+
+  if not hasura_endpoint or not hasura_admin_secret:
+    errorMsg = "HASURA_GRAPHQL_ENDPOINT and HASURA_GRAPHQL_ADMIN_SECRET" if not hasura_endpoint and not hasura_admin_secret \
+      else "HASURA_GRAPHQL_ENDPOINT" if not hasura_endpoint \
+      else "HASURA_GRAPHQL_ADMIN_SECRET"
+    errorMsg += " must be defined by either environment variables or in a config.yaml located in " + config_folder + "."
+    exit_with_error(errorMsg)
+
+  return hasura_endpoint, hasura_admin_secret
+
+
 def createArgsParser() -> argparse.ArgumentParser:
+  """
+  Create an ArgumentParser for this script.
+  """
   # Create a cli parser
   parser = argparse.ArgumentParser(description=__doc__)
 
@@ -177,26 +229,37 @@ def createArgsParser() -> argparse.ArgumentParser:
   # Add arguments
   exclusive_args.add_argument(
     '-a', '--apply',
-    help="apply migration steps to the database",
+    help='apply migration steps to the database',
     action='store_true')
 
   exclusive_args.add_argument(
     '-r', '--revert',
-    help="revert migration steps to the databases",
+    help='revert migration steps to the databases',
     action='store_true')
 
   parser.add_argument(
     '--all',
-    help="apply[revert] ALL unapplied[applied] migration steps to the database",
+    help='apply[revert] ALL unapplied[applied] migration steps to the database',
     action='store_true')
 
   parser.add_argument(
     '-p', '--hasura-path',
-    help="the path to the directory containing the config.yaml for Aerie. defaults to ./hasura")
+    help='directory containing the config.yaml and migrations folder for the venue. defaults to ./hasura',
+    default='./hasura')
 
   parser.add_argument(
     '-e', '--env-path',
-    help="the path to the .env file used to deploy aerie. must define AERIE_USERNAME and AERIE_PASSWORD")
+    help='envfile to load envvars from.')
+
+  parser.add_argument(
+    '--endpoint',
+    help="http(s) endpoint for the venue's Hasura instance",
+    required=False)
+
+  parser.add_argument(
+    '--admin_secret',
+    help="admin secret for the venue's Hasura instance",
+    required=False)
 
   parser.add_argument(
     '-n', '--network-location',
@@ -204,6 +267,8 @@ def createArgsParser() -> argparse.ArgumentParser:
     default='localhost')
 
   return parser
+
+
 def main():
   # Generate arguments
   args = migrateArgsParser().parse_args()
@@ -212,6 +277,20 @@ def main():
   if args.hasura_path:
     HASURA_PATH = args.hasura_path
   MIGRATION_PATH = os.path.abspath(HASURA_PATH+"/migrations/Aerie")
+
+  if args.env_path:
+    if not os.path.isfile(args.env_path):
+      exit_with_error(f'Specified envfile does not exist: {args.env_path}')
+    load_dotenv(args.env_path)
+
+  # Grab the credentials from the environment if needed
+  hasura_endpoint = args.endpoint if args.endpoint else os.environ.get('HASURA_GRAPHQL_ENDPOINT', "")
+  hasura_admin_secret = args.admin_secret if args.admin_secret else os.environ.get('HASURA_GRAPHQL_ADMIN_SECRET', "")
+
+  if not (hasura_endpoint and hasura_admin_secret):
+    (e, s) = loadConfigFile(hasura_endpoint, hasura_admin_secret, HASURA_PATH)
+    hasura_endpoint = e
+    hasura_admin_secret = s
 
   # Find all migration folders for the database
   migration = DB_Migration("Aerie", MIGRATION_PATH)
@@ -225,33 +304,6 @@ def main():
     sys.exit(f'Hasura CLI is not installed. Exiting...')
   else:
     os.system('hasura version')
-
-  # Get the Username/Password
-  username = os.environ.get('AERIE_USERNAME', "")
-  password = os.environ.get('AERIE_PASSWORD', "")
-
-  if args.env_path:
-    usernameFound = False
-    passwordFound = False
-    with open(args.env_path) as envFile:
-      for line in envFile:
-        if usernameFound and passwordFound:
-          break
-        line = line.strip()
-        if line.startswith("AERIE_USERNAME"):
-          username = line.removeprefix("AERIE_USERNAME=")
-          usernameFound = True
-          continue
-        if line.startswith("AERIE_PASSWORD"):
-          password = line.removeprefix("AERIE_PASSWORD=")
-          passwordFound = True
-          continue
-    if not usernameFound:
-      print("\033[91mError\033[0m: AERIE_USERNAME environment variable is not defined in "+args.env_path+".")
-      sys.exit(1)
-    if not passwordFound:
-      print("\033[91mError\033[0m: AERIE_PASSWORD environment variable is not defined in "+args.env_path+".")
-      sys.exit(1)
 
   # Navigate to the hasura directory
   os.chdir(HASURA_PATH)
