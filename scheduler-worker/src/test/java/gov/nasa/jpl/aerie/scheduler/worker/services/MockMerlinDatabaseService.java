@@ -170,6 +170,13 @@ class MockMerlinDatabaseService implements MerlinDatabaseService.OwnerRole {
   }
 
   @Override
+  public Map<ActivityDirectiveId, GoalId> getActivityIdToGoalIdMap(final PlanId planId)
+  throws MerlinServiceException, IOException
+  {
+    return Map.of();
+  }
+
+  @Override
   public void clearPlanActivityDirectives(final PlanId planId)
   {
 

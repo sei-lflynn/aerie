@@ -114,6 +114,9 @@ public interface MerlinDatabaseService {
      */
     Collection<ResourceType> getResourceTypes(final PlanId planId)
     throws IOException, MerlinServiceException, NoSuchPlanException;
+
+    Map<ActivityDirectiveId, GoalId> getActivityIdToGoalIdMap(final PlanId planId)
+      throws MerlinServiceException, IOException;
   }
 
   interface WriterRole {

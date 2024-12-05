@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /*package-local*/ final class GetCreatedActivitiesAction implements AutoCloseable {
   private static final @Language("SQL") String sql = """
