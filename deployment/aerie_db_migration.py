@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrate the Aerie Database"""
+"""Migrate the database of an Aerie venue."""
 
 import os
 import argparse
@@ -183,6 +183,13 @@ class DB_Migration:
 
 
 def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bool):
+  """
+  Migrate the database one migration at a time until there are no more migrations left or the user decides to quit.
+
+  :param hasura: Hasura object connected to the venue to be migrated
+  :param db_migration: DB_Migration containing the complete list of migrations available
+  :param apply: Whether to apply or revert migrations
+  """
   display_string = "\n\033[4mMIGRATION STEPS AVAILABLE:\033[0m\n"
   _output = hasura.get_migrate_output('status')
   del _output[0:3]
@@ -254,6 +261,12 @@ def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bo
 
 
 def bulk_migration(hasura: Hasura, apply: bool):
+  """
+  Migrate the database until there are no migrations left to be applied[reverted].
+
+  :param hasura: Hasura object connected to the venue to be migrated
+  :param apply: Whether to apply or revert migrations.
+  """
   # Migrate the database
   exit_with = 0
   if apply:
@@ -280,6 +293,11 @@ def bulk_migration(hasura: Hasura, apply: bool):
 
 
 def migrate(args: argparse.Namespace):
+  """
+  Handle the 'migrate' subcommand.
+
+  :param args: The arguments passed to the script.
+  """
   hasura = create_hasura(arguments)
 
   clear_screen()
@@ -300,6 +318,11 @@ def migrate(args: argparse.Namespace):
 
 
 def status(args: argparse.Namespace):
+  """
+  Handle the 'status' subcommand.
+
+  :param args: The arguments passed to the script.
+  """
   hasura = create_hasura(args)
 
   clear_screen()
