@@ -333,9 +333,51 @@ def createArgsParser() -> argparse.ArgumentParser:
   """
   # Create a cli parser
   parser = argparse.ArgumentParser(description=__doc__)
+  parent_parser = argparse.ArgumentParser(add_help=False)
+  subparser = parser.add_subparsers(title='commands', metavar="<command>")
+
+  # Add global arguments to Parent parser
+  parent_parser.add_argument(
+    '-p', '--hasura-path',
+    dest='hasura_path',
+    help='directory containing the config.yaml and migrations folder for the venue. defaults to ./hasura',
+    default='./hasura')
+
+  parent_parser.add_argument(
+    '-e', '--env-path',
+    dest='env_path',
+    help='envfile to load envvars from.')
+
+  parent_parser.add_argument(
+    '--endpoint',
+    help="http(s) endpoint for the venue's Hasura instance",
+    required=False)
+
+  parent_parser.add_argument(
+    '--admin-secret',
+    dest='admin_secret',
+    help="admin secret for the venue's Hasura instance",
+    required=False)
+
+  # Add 'status' subcommand
+  status_parser = subparser.add_parser(
+    'status',
+    help='Get the current migration status of the database',
+    description='Get the current migration status of the database.',
+    parents=[parent_parser])
+
+  status_parser.set_defaults(func=status)
+
+  # Add 'migrate' subcommand
+  migrate_parser = subparser.add_parser(
+    'migrate',
+    help='Migrate the database',
+    description='Migrate the database.',
+    parents=[parent_parser])
+  migrate_parser.set_defaults(func=migrate)
 
   # Applying and Reverting are exclusive arguments
-  exclusive_args = parser.add_mutually_exclusive_group(required=True)
+  exclusive_args = migrate_parser.add_mutually_exclusive_group(required=True)
 
   # Add arguments
   exclusive_args.add_argument(
@@ -348,40 +390,61 @@ def createArgsParser() -> argparse.ArgumentParser:
     help='revert migration steps to the databases',
     action='store_true')
 
-  parser.add_argument(
+  migrate_parser.add_argument(
     '--all',
     help='apply[revert] ALL unapplied[applied] migration steps to the database',
     action='store_true')
 
-  parser.add_argument(
-    '-p', '--hasura-path',
-    help='directory containing the config.yaml and migrations folder for the venue. defaults to ./hasura',
-    default='./hasura')
-
-  parser.add_argument(
-    '-e', '--env-path',
-    help='envfile to load envvars from.')
-
-  parser.add_argument(
-    '--endpoint',
-    help="http(s) endpoint for the venue's Hasura instance",
-    required=False)
-
-  parser.add_argument(
-    '--admin_secret',
-    help="admin secret for the venue's Hasura instance",
-    required=False)
-
   return parser
 
 
-def main():
-  # Generate arguments
-  args = migrateArgsParser().parse_args()
+def migrate(args: argparse.Namespace):
+  hasura = create_hasura(arguments)
 
-  HASURA_PATH = args.hasura_path
-  MIGRATION_PATH = os.path.abspath(HASURA_PATH+"/migrations/Aerie")
+  clear_screen()
+  print(f'\n###############################'
+        f'\nAERIE DATABASE MIGRATION HELPER'
+        f'\n###############################'
+        f'\n\nMigrating database at {hasura.endpoint}')
+  # Enter step-by-step mode if not otherwise specified
+  if not args.all:
+    # Find all migration folders for the database
+    migration_path = os.path.abspath(args.hasura_path+"/migrations/Aerie")
+    migration = DB_Migration(migration_path, args.revert)
 
+    # Go step-by-step through the migrations available for the selected database
+    step_by_step_migration(hasura, migration, args.apply)
+  else:
+    bulk_migration(hasura, args.apply)
+
+
+def status(args: argparse.Namespace):
+  hasura = create_hasura(args)
+
+  clear_screen()
+  print(f'\n###############################'
+        f'\nAERIE DATABASE MIGRATION STATUS'
+        f'\n###############################'
+        f'\n\nDisplaying status of database at {hasura.endpoint}')
+
+  display_string = f"\n\033[4mMIGRATION STATUS:\033[0m\n"
+  output = hasura.get_migrate_output('status')
+  del output[0:3]
+  display_string += "\n".join(output)
+  print(display_string)
+
+
+def create_hasura(args: argparse.Namespace) -> Hasura:
+  """
+  Create a Hasura object from the CLI arguments
+
+  :param args: Namespace containing the CLI arguments passed to the script. Relevant fields in Namespace:
+    - hasura_path (mandatory): Directory containing the config.yaml and migrations folder for the venue
+    - env_path (optional): Envfile to load envvars from
+    - endpoint (optional): Http(s) endpoint for the venue's Hasura instance
+    - admin_secret (optional): Admin secret for the venue's Hasura instance
+  :return: A Hasura object connected to the specified instance
+  """
   if args.env_path:
     if not os.path.isfile(args.env_path):
       exit_with_error(f'Specified envfile does not exist: {args.env_path}')
@@ -392,34 +455,18 @@ def main():
   hasura_admin_secret = args.admin_secret if args.admin_secret else os.environ.get('HASURA_GRAPHQL_ADMIN_SECRET', "")
 
   if not (hasura_endpoint and hasura_admin_secret):
-    (e, s) = loadConfigFile(hasura_endpoint, hasura_admin_secret, HASURA_PATH)
+    (e, s) = loadConfigFile(hasura_endpoint, hasura_admin_secret, args.hasura_path)
     hasura_endpoint = e
     hasura_admin_secret = s
 
-  hasura = Hasura(endpoint=hasura_endpoint,
-                  admin_secret=hasura_admin_secret,
-                  db_name="Aerie",
-                  hasura_path=os.path.abspath(HASURA_PATH),
-                  env_path=os.path.abspath(args.env_path) if args.env_path else None)
-
-  # Navigate to the hasura directory
-  os.chdir(HASURA_PATH)
-
-  clear_screen()
-  print(f'\n###############################'
-        f'\nAERIE DATABASE MIGRATION HELPER'
-        f'\n###############################'
-        f'\n\nMigrating database at {hasura.endpoint}')
-  # Enter step-by-step mode if not otherwise specified
-  if not args.all:
-    # Find all migration folders for the database
-    migration = DB_Migration(MIGRATION_PATH, args.revert)
-
-    # Go step-by-step through the migrations available for the selected database
-    step_by_step_migration(hasura, migration, args.apply)
-  else:
-    bulk_migration(hasura, args.apply)
+  return Hasura(endpoint=hasura_endpoint,
+                admin_secret=hasura_admin_secret,
+                db_name="Aerie",
+                hasura_path=os.path.abspath(args.hasura_path),
+                env_path=os.path.abspath(args.env_path) if args.env_path else None)
 
 
 if __name__ == "__main__":
-  main()
+  # Generate arguments and kick off correct subfunction
+  arguments = createArgsParser().parse_args()
+  arguments.func(arguments)
