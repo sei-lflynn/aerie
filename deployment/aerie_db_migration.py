@@ -23,7 +23,138 @@ def exit_with_error(message: str, exit_code=1):
   print("\033[91mError\033[0m: "+message)
   sys.exit(exit_code)
 
-# internal class
+
+class Hasura:
+  """
+  Class for communicating with Hasura via the CLI and API.
+  """
+  command_suffix = ''
+  migrate_suffix = ''
+  endpoint = ''
+  admin_secret = ''
+  db_name = 'Aerie'
+  current_version = 0
+
+  def __init__(self, endpoint: str, admin_secret: str, hasura_path: str,  env_path: str, db_name='Aerie'):
+    """
+    Initialize a Hasura object.
+
+    :param endpoint: The http(s) endpoint for the Hasura instance.
+    :param admin_secret: The admin secret for the Hasura instance.
+    :param hasura_path: The directory containing the config.yaml and migrations folder for the Hasura instance.
+    :param env_path: The path to the envfile, if provided.
+    :param db_name: The name that the Hasura instance calls the database. Defaults to 'Aerie'.
+    """
+    self.admin_secret = admin_secret
+    self.db_name = db_name
+
+    # Sanitize endpoint
+    self.endpoint = endpoint
+    self.endpoint = self.endpoint.strip()
+    self.endpoint = self.endpoint.rstrip('/')
+
+    # Set up the suffix flags to use when calling the Hasura CLI
+    self.command_suffix = f'--skip-update-check --project {hasura_path}'
+    if env_path:
+      self.command_suffix += f' --envfile {env_path}'
+
+    # Set up the suffix flags to use when calling the 'migrate' subcommand on the CLI
+    self.migrate_suffix = f"--database-name {self.db_name} --endpoint {self.endpoint} --admin-secret '{self.admin_secret}'"
+
+    # Check that Hasura CLI is installed
+    if not shutil.which('hasura'):
+      sys.exit(f'Hasura CLI is not installed. Exiting...')
+    else:
+      self.execute('version')
+
+    # Mark the current schema version in Hasura
+    self.current_version = self.mark_current_version()
+
+  def execute(self, subcommand: str, flags='', no_output=False) -> int:
+    """
+    Execute an arbitrary "hasura" command.
+
+    :param subcommand: The subcommand to execute.
+    :param flags: The flags to be passed to the subcommand.
+    :param no_output: If true, swallows both STDERR and STDOUT output from the command.
+    :return: The exit code of the command.
+    """
+    command = f'hasura {subcommand} {flags} {self.command_suffix}'
+    if no_output:
+      command += ' > /dev/null 2>&1'
+    return os.system(command)
+
+  def migrate(self, subcommand: str, flags='', no_output=False) -> int:
+    """
+    Execute a "hasura migrate" subcommand.
+
+    :param subcommand: A subcommand of "hasura migrate"
+    :param flags: Flags specific to the subcommand call to be passed.
+    :param no_output: If true, swallows both STDERR and STDOUT output from the command.
+    :return: The exit code of the command.
+    """
+    command = f'hasura migrate {subcommand} {flags} {self.migrate_suffix} {self.command_suffix}'
+    if no_output:
+      command += ' > /dev/null 2>&1'
+    return os.system(command)
+
+  def get_migrate_output(self, subcommand: str, flags='') -> [str]:
+    """
+    Get the output of a "hasura migrate" subcommand.
+
+    :param subcommand: A subcommand of "hasura migrate"
+    :param flags: Flags specific to the subcommand call to be passed.
+    :return: The STDOUT response of the subcommand, split on newlines.
+    """
+    command = f'hasura migrate {subcommand} {flags} {self.migrate_suffix} {self.command_suffix}'
+    return subprocess.getoutput(command).split("\n")
+
+  def mark_current_version(self) -> int:
+    """
+    Queries the database behind the Hasura instance for its current schema information.
+    Ensures that all applied migrations are marked as "applied" in Hasura's internal migration tracker.
+
+    :return: The migration the underlying database is currently on
+    """
+    # Query the database
+    run_sql_url = f'{self.endpoint}/v2/query'
+    headers = {
+      "content-type": "application/json",
+      "x-hasura-admin-secret": self.admin_secret,
+      "x-hasura-role": "admin"
+    }
+    body = {
+      "type": "run_sql",
+      "args": {
+        "source": self.db_name,
+        "sql": "SELECT migration_id FROM migrations.schema_migrations;",
+        "read_only": True
+      }
+    }
+    session = requests.Session()
+    resp = session.post(url=run_sql_url, headers=headers, json=body)
+    if not resp.ok:
+      exit_with_error("Error while fetching current schema information.")
+
+    migration_ids = resp.json()['result']
+    if migration_ids.pop(0)[0] != 'migration_id':
+      exit_with_error("Error while fetching current schema information.")
+
+    # migration_ids now looks like [['0'], ['1'], ... ['n']]
+    prev_id = -1
+    cur_id = 0
+    for i in migration_ids:
+      cur_id = int(i[0])
+      if cur_id != prev_id + 1:
+        exit_with_error(f'Gap detected in applied migrations. \n\tLast migration: {prev_id} \tNext migration: {cur_id}'
+                        f'\n\tTo resolve, manually revert all migrations following {prev_id}, then run this script again.')
+      # Ensure migration is marked as applied
+      self.migrate('apply', f'--skip-execution --version {cur_id}', no_output=True)
+      prev_id = cur_id
+
+    return cur_id
+
+
 class DB_Migration:
   """
   Container class for Migration steps to be applied/reverted.
@@ -50,9 +181,10 @@ class DB_Migration:
   def add_migration_step(self, _migration_step):
     self.steps = sorted(_migration_step, key=lambda x: int(x.split('_')[0]))
 
-def step_by_step_migration(db_migration, apply):
+
+def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bool):
   display_string = "\n\033[4mMIGRATION STEPS AVAILABLE:\033[0m\n"
-  _output = subprocess.getoutput(f'hasura migrate status --database-name {db_migration.db_name}').split("\n")
+  _output = hasura.get_migrate_output('status')
   del _output[0:3]
   display_string += _output[0] + "\n"
 
@@ -91,9 +223,9 @@ def step_by_step_migration(db_migration, apply):
     timestamp = step.split("_")[0]
 
     if apply:
-      os.system(f'hasura migrate apply --version {timestamp} --database-name {db_migration.db_name} --dry-run --log-level WARN')
+      hasura.migrate('apply', f'--version {timestamp} --dry-run --log-level WARN')
     else:
-      os.system(f'hasura migrate apply --version {timestamp} --type down --database-name {db_migration.db_name} --dry-run --log-level WARN')
+      hasura.migrate('apply', f'--version {timestamp} --type down --dry-run --log-level WARN')
 
     print()
     _value = ''
@@ -108,11 +240,11 @@ def step_by_step_migration(db_migration, apply):
     if _value == "y":
       if apply:
         print('Applying...')
-        exit_code = os.system(f'hasura migrate apply --version {timestamp} --type up --database-name {db_migration.db_name}')
+        exit_code = hasura.migrate('apply', f'--version {timestamp} --type up')
       else:
         print('Reverting...')
-        exit_code = os.system(f'hasura migrate apply --version {timestamp} --type down --database-name {db_migration.db_name}')
-      os.system('hasura metadata reload')
+        exit_code = hasura.migrate('apply', f'--version {timestamp} --type down')
+      hasura.execute('metadata reload')
       print()
       if exit_code != 0:
         return
@@ -120,88 +252,32 @@ def step_by_step_migration(db_migration, apply):
       return
   input("Press Enter to continue...")
 
-def bulk_migration(db_migration, apply, current_version):
+
+def bulk_migration(hasura: Hasura, apply: bool):
   # Migrate the database
   exit_with = 0
   if apply:
-    os.system(f'hasura migrate apply --database-name {db_migration.db_name} --dry-run --log-level WARN')
-    exit_code = os.system(f'hasura migrate apply --database-name {db_migration.db_name}')
+    hasura.migrate('apply', f'--dry-run --log-level WARN')
+    exit_code = hasura.migrate('apply')
     if exit_code != 0:
       exit_with = 1
   else:
-    # Performing GOTO 1 when the database is at migration 1 will cause Hasura to attempt to reapply migration 1
-    if current_version == 1:
-      os.system(f'hasura migrate apply --down 1 --database-name {db_migration.db_name} --dry-run --log-level WARN')
-      exit_code = os.system(f'hasura migrate apply --down 1 --database-name {db_migration.db_name}')
-    else:
-      os.system(f'hasura migrate apply --goto 1 --database-name {db_migration.db_name} --dry-run --log-level WARN &&'
-                f'hasura migrate apply --down 1 --database-name {db_migration.db_name} --dry-run --log-level WARN')
-      exit_code = os.system(f'hasura migrate apply --goto 1 --database-name {db_migration.db_name} &&'
-                            f'hasura migrate apply --down 1 --database-name {db_migration.db_name}')
+    hasura.migrate('apply', f'--down {hasura.current_version} --dry-run --log-level WARN')
+    exit_code = hasura.migrate('apply', f'--down {hasura.current_version}')
     if exit_code != 0:
       exit_with = 1
 
-  os.system('hasura metadata reload')
+  hasura.execute('metadata reload')
 
   # Show the result after the migration
   print(f'\n###############'
         f'\nDatabase Status'
         f'\n###############')
-  _output = subprocess.getoutput(f'hasura migrate status --database-name {db_migration.db_name}').split("\n")
+  _output = hasura.get_migrate_output('status')
   del _output[0:3]
   print("\n".join(_output))
   exit(exit_with)
 
-def mark_current_version(admin_secret: str, endpoint: str) -> int:
-  """
-  Queries the database behind the Hasura instance for its current schema information.
-  Ensures that all applied migrations are marked as such in Hasura's migration tracker.
-
-  :param admin_secret: The Admin Secret for the Hasura instance
-  :param endpoint: The connection URL for the Hasura instance, in the format "https://URL:PORT"
-  :return: The migration the database is currently on
-  """
-  # Remove potential trailing "/"
-  endpoint = endpoint.strip()
-  endpoint = endpoint.rstrip('/')
-
-  # Query the database
-  run_sql_url = f'{endpoint}/v2/query'
-  headers = {
-    "content-type": "application/json",
-    "x-hasura-admin-secret": admin_secret,
-    "x-hasura-role": "admin"
-  }
-  body = {
-    "type": "run_sql",
-    "args": {
-      "source": "Aerie",
-      "sql": "SELECT migration_id FROM migrations.schema_migrations;",
-      "read_only": True
-    }
-  }
-  session = requests.Session()
-  resp = session.post(url=run_sql_url, headers=headers, json=body)
-  if not resp.ok:
-    exit_with_error("Error while fetching current schema information.")
-
-  migration_ids = resp.json()['result']
-  if migration_ids.pop(0)[0] != 'migration_id':
-    exit_with_error("Error while fetching current schema information.")
-
-  # migration_ids currently looks like [['0'], ['1'], ... ['n']]
-  prev_id = -1
-  cur_id = 0
-  for i in migration_ids:
-    cur_id = int(i[0])
-    if cur_id != prev_id + 1:
-      exit_with_error(f'Gap detected in applied migrations. \n\tLast migration: {prev_id} \tNext migration: {cur_id}'
-                      f'\n\tTo resolve, manually revert all migrations following {prev_id}, then run this script again.')
-    # Ensure migration is marked as applied
-    os.system(f'hasura migrate apply --skip-execution --version {cur_id} --database-name Aerie >/dev/null 2>&1')
-    prev_id = cur_id
-
-  return cur_id
 
 def loadConfigFile(endpoint: str, secret: str, config_folder: str) -> (str, str):
   """
@@ -303,9 +379,7 @@ def main():
   # Generate arguments
   args = migrateArgsParser().parse_args()
 
-  HASURA_PATH = "./hasura"
-  if args.hasura_path:
-    HASURA_PATH = args.hasura_path
+  HASURA_PATH = args.hasura_path
   MIGRATION_PATH = os.path.abspath(HASURA_PATH+"/migrations/Aerie")
 
   if args.env_path:
@@ -322,24 +396,14 @@ def main():
     hasura_endpoint = e
     hasura_admin_secret = s
 
-  # Find all migration folders for the database
-  migration = DB_Migration("Aerie", MIGRATION_PATH)
-
-  # If reverting, reverse the list
-  if args.revert:
-    migration.steps.reverse()
-
-  # Check that hasura cli is installed
-  if not shutil.which('hasura'):
-    sys.exit(f'Hasura CLI is not installed. Exiting...')
-  else:
-    os.system('hasura version')
+  hasura = Hasura(endpoint=hasura_endpoint,
+                  admin_secret=hasura_admin_secret,
+                  db_name="Aerie",
+                  hasura_path=os.path.abspath(HASURA_PATH),
+                  env_path=os.path.abspath(args.env_path) if args.env_path else None)
 
   # Navigate to the hasura directory
   os.chdir(HASURA_PATH)
-
-  # Mark all migrations previously applied to the databases to be updated as such
-  current_version = mark_current_version(endpoint=hasura_endpoint, admin_secret=hasura_admin_secret)
 
   clear_screen()
   print(f'\n###############################'
@@ -347,10 +411,14 @@ def main():
         f'\n###############################')
   # Enter step-by-step mode if not otherwise specified
   if not args.all:
+    # Find all migration folders for the database
+    migration = DB_Migration(MIGRATION_PATH, args.revert)
+
     # Go step-by-step through the migrations available for the selected database
-    step_by_step_migration(migration, args.apply)
+    step_by_step_migration(hasura, migration, args.apply)
   else:
-    bulk_migration(migration, args.apply, current_version)
+    bulk_migration(hasura, args.apply)
+
 
 if __name__ == "__main__":
   main()
