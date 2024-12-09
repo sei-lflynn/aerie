@@ -6,8 +6,8 @@ import argparse
 import sys
 import shutil
 import subprocess
-import psycopg
 from dotenv import load_dotenv
+import requests
 
 def clear_screen():
   os.system('cls' if os.name == 'nt' else 'clear')
@@ -152,21 +152,56 @@ def bulk_migration(db_migration, apply, current_version):
   print("\n".join(_output))
   exit(exit_with)
 
-def mark_current_version(username, password, netloc):
-  # Connect to DB
-  connectionString = "postgres://"+username+":"+password+"@"+netloc+":5432/aerie"
-  with psycopg.connect(connectionString) as connection:
-    # Open a cursor to perform database operations
-    with connection.cursor() as cursor:
-      # Get the current schema version
-      cursor.execute("SELECT migration_id FROM migrations.schema_migrations ORDER BY migration_id::int DESC LIMIT 1")
-      current_schema = int(cursor.fetchone()[0])
+def mark_current_version(admin_secret: str, endpoint: str) -> int:
+  """
+  Queries the database behind the Hasura instance for its current schema information.
+  Ensures that all applied migrations are marked as such in Hasura's migration tracker.
 
-  # Mark everything up to that as applied
-  for i in range(0, current_schema+1):
-    os.system('hasura migrate apply --skip-execution --version '+str(i)+' --database-name Aerie >/dev/null 2>&1')
+  :param admin_secret: The Admin Secret for the Hasura instance
+  :param endpoint: The connection URL for the Hasura instance, in the format "https://URL:PORT"
+  :return: The migration the database is currently on
+  """
+  # Remove potential trailing "/"
+  endpoint = endpoint.strip()
+  endpoint = endpoint.rstrip('/')
 
-  return current_schema
+  # Query the database
+  run_sql_url = f'{endpoint}/v2/query'
+  headers = {
+    "content-type": "application/json",
+    "x-hasura-admin-secret": admin_secret,
+    "x-hasura-role": "admin"
+  }
+  body = {
+    "type": "run_sql",
+    "args": {
+      "source": "Aerie",
+      "sql": "SELECT migration_id FROM migrations.schema_migrations;",
+      "read_only": True
+    }
+  }
+  session = requests.Session()
+  resp = session.post(url=run_sql_url, headers=headers, json=body)
+  if not resp.ok:
+    exit_with_error("Error while fetching current schema information.")
+
+  migration_ids = resp.json()['result']
+  if migration_ids.pop(0)[0] != 'migration_id':
+    exit_with_error("Error while fetching current schema information.")
+
+  # migration_ids currently looks like [['0'], ['1'], ... ['n']]
+  prev_id = -1
+  cur_id = 0
+  for i in migration_ids:
+    cur_id = int(i[0])
+    if cur_id != prev_id + 1:
+      exit_with_error(f'Gap detected in applied migrations. \n\tLast migration: {prev_id} \tNext migration: {cur_id}'
+                      f'\n\tTo resolve, manually revert all migrations following {prev_id}, then run this script again.')
+    # Ensure migration is marked as applied
+    os.system(f'hasura migrate apply --skip-execution --version {cur_id} --database-name Aerie >/dev/null 2>&1')
+    prev_id = cur_id
+
+  return cur_id
 
 def loadConfigFile(endpoint: str, secret: str, config_folder: str) -> (str, str):
   """
@@ -261,11 +296,6 @@ def createArgsParser() -> argparse.ArgumentParser:
     help="admin secret for the venue's Hasura instance",
     required=False)
 
-  parser.add_argument(
-    '-n', '--network-location',
-    help="the network location of the database. defaults to localhost",
-    default='localhost')
-
   return parser
 
 
@@ -309,7 +339,7 @@ def main():
   os.chdir(HASURA_PATH)
 
   # Mark all migrations previously applied to the databases to be updated as such
-  current_version = mark_current_version(username, password, args.network_location)
+  current_version = mark_current_version(endpoint=hasura_endpoint, admin_secret=hasura_admin_secret)
 
   clear_screen()
   print(f'\n###############################'
