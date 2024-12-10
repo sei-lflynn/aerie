@@ -109,6 +109,17 @@ class Hasura:
     command = f'hasura migrate {subcommand} {flags} {self.migrate_suffix} {self.command_suffix}'
     return subprocess.getoutput(command).split("\n")
 
+  def get_migrate_status(self, flags='') -> str:
+    """
+    Execute 'hasura migrate status' and format the output.
+
+    :param flags: Any additional flags to be passed to 'hasura migrate status'
+    :return: The output of the CLI command with the first three lines removed
+    """
+    output = self.get_migrate_output('status', flags)
+    del output[0:3]
+    return output
+
   def mark_current_version(self) -> int:
     """
     Queries the database behind the Hasura instance for its current schema information.
@@ -154,6 +165,13 @@ class Hasura:
 
     return cur_id
 
+  def reload_metadata(self):
+    """
+    Apply and reload the metadata.
+    """
+    self.execute('metadata apply')
+    self.execute('metadata reload')
+
 
 class DB_Migration:
   """
@@ -191,8 +209,7 @@ def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bo
   :param apply: Whether to apply or revert migrations
   """
   display_string = "\n\033[4mMIGRATION STEPS AVAILABLE:\033[0m\n"
-  _output = hasura.get_migrate_output('status')
-  del _output[0:3]
+  _output = hasura.get_migrate_status()
   display_string += _output[0] + "\n"
 
   # Filter out the steps that can't be applied given the current mode and currently applied steps
@@ -243,6 +260,7 @@ def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bo
         _value = input(f'Revert {step}? (y/n/\033[4mq\033[0muit): ').lower()
 
     if _value == "q" or _value == "quit":
+      hasura.reload_metadata()
       sys.exit()
     if _value == "y":
       if apply:
@@ -251,12 +269,14 @@ def step_by_step_migration(hasura: Hasura, db_migration: DB_Migration, apply: bo
       else:
         print('Reverting...')
         exit_code = hasura.migrate('apply', f'--version {timestamp} --type down')
-      hasura.execute('metadata reload')
       print()
       if exit_code != 0:
+        hasura.reload_metadata()
         return
     elif _value == "n":
+      hasura.reload_metadata()
       return
+  hasura.reload_metadata()
   input("Press Enter to continue...")
 
 
@@ -280,7 +300,7 @@ def bulk_migration(hasura: Hasura, apply: bool):
     if exit_code != 0:
       exit_with = 1
 
-  hasura.execute('metadata reload')
+  hasura.reload_metadata()
 
   # Show the result after the migration
   print(f'\n###############'
@@ -332,9 +352,7 @@ def status(args: argparse.Namespace):
         f'\n\nDisplaying status of database at {hasura.endpoint}')
 
   display_string = f"\n\033[4mMIGRATION STATUS:\033[0m\n"
-  output = hasura.get_migrate_output('status')
-  del output[0:3]
-  display_string += "\n".join(output)
+  display_string += "\n".join(hasura.get_migrate_status())
   print(display_string)
 
 
