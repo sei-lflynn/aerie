@@ -509,4 +509,7 @@ def createArgsParser() -> argparse.ArgumentParser:
 if __name__ == "__main__":
   # Generate arguments and kick off correct subfunction
   arguments = createArgsParser().parse_args()
-  arguments.func(arguments)
+  try:
+    arguments.func(arguments)
+  except AttributeError:
+    createArgsParser().print_help()
