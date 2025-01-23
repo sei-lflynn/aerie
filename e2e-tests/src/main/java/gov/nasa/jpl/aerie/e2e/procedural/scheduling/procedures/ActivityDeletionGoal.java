@@ -15,9 +15,10 @@ import java.util.Map;
 /**
  * Creates three activities in a chain of anchors, then deletes one.
  * If `whichToDelete` is negative, this leaves all three activities.
+ * If `rollback` is true, this will roll the edit back before finishing.
  */
 @SchedulingProcedure
-public record ActivityDeletionGoal(int whichToDelete, DeletedAnchorStrategy anchorStrategy) implements Goal {
+public record ActivityDeletionGoal(int whichToDelete, DeletedAnchorStrategy anchorStrategy, boolean rollback) implements Goal {
   @Override
   public void run(@NotNull final EditablePlan plan) {
     final var ids = new ActivityDirectiveId[3];
@@ -42,6 +43,7 @@ public record ActivityDeletionGoal(int whichToDelete, DeletedAnchorStrategy anch
       plan.delete(ids[whichToDelete], anchorStrategy);
     }
 
-    plan.commit();
+    if (rollback) plan.rollback();
+    else plan.commit();
   }
 }

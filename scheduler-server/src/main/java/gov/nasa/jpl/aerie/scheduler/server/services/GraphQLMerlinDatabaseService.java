@@ -442,6 +442,20 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
             activity.anchoredToStart()
         );
         if (!activityDirectiveFromSchedulingDirective.equals(actFromInitialPlan.get())) {
+          final var newState = activityDirectiveFromSchedulingDirective.serializedActivity();
+          final var oldState = actFromInitialPlan.get().serializedActivity();
+          if (!Objects.equals(newState.getTypeName(), oldState.getTypeName())) {
+            throw new IllegalStateException(
+                "Modified activities cannot change type. Was " + oldState.getTypeName()
+                + ", now " + newState.getTypeName()
+            );
+          }
+          if (!Objects.equals(newState.getArguments(), oldState.getArguments())) {
+            throw new IllegalStateException(
+                "Modified activities cannot change arguments. Was " + oldState.getArguments()
+                + ", now " + newState.getArguments()
+            );
+          }
           toModify.add(activity);
         }
         ids.put(activity.id(), activity.id());

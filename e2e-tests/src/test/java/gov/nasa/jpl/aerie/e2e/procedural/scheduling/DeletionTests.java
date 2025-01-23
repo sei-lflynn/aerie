@@ -42,6 +42,7 @@ public class DeletionTests extends ProceduralSchedulingSetup {
         .createObjectBuilder()
         .add("whichToDelete", -1)
         .add("anchorStrategy", "Error")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -82,6 +83,7 @@ public class DeletionTests extends ProceduralSchedulingSetup {
         .createObjectBuilder()
         .add("whichToDelete", 2)
         .add("anchorStrategy", "Error")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -113,6 +115,7 @@ public class DeletionTests extends ProceduralSchedulingSetup {
         .createObjectBuilder()
         .add("whichToDelete", 1)
         .add("anchorStrategy", "Cascade")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -134,7 +137,8 @@ public class DeletionTests extends ProceduralSchedulingSetup {
     final var args = Json
         .createObjectBuilder()
         .add("whichToDelete", 1)
-        .add("anchorStrategy", "ReAnchor")
+        .add("anchorStrategy", "PreserveTree")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -168,6 +172,7 @@ public class DeletionTests extends ProceduralSchedulingSetup {
         .createObjectBuilder()
         .add("whichToDelete", 0)
         .add("anchorStrategy", "Cascade")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -185,7 +190,8 @@ public class DeletionTests extends ProceduralSchedulingSetup {
     final var args = Json
         .createObjectBuilder()
         .add("whichToDelete", 0)
-        .add("anchorStrategy", "ReAnchor")
+        .add("anchorStrategy", "PreserveTree")
+        .add("rollback", false)
         .build();
 
     hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
@@ -203,6 +209,47 @@ public class DeletionTests extends ProceduralSchedulingSetup {
           final var result = Objects.equals(it.type(), "BiteBanana")
                              && Objects.equals(it.anchorId(), null)
                              && Objects.equals(it.startOffset(), "02:00:00");
+          if (result) id2.set(it.id());
+          return result;
+        }
+    ));
+
+    assertTrue(activities.stream().anyMatch(
+        it -> Objects.equals(it.type(), "BiteBanana") && Objects.equals(it.anchorId(), id2.get())
+    ));
+  }
+
+  @Test
+  void anchorResetOnRollback() throws IOException {
+    final var args = Json
+        .createObjectBuilder()
+        .add("whichToDelete", 1)
+        .add("anchorStrategy", "PreserveTree")
+        .add("rollback", true)
+        .build();
+
+    hasura.updateSchedulingSpecGoalArguments(procedureId.invocationId(), args);
+
+    hasura.awaitScheduling(specId);
+
+    final var plan = hasura.getPlan(planId);
+    final var activities = plan.activityDirectives();
+
+    assertEquals(3, activities.size());
+
+    final AtomicReference<Integer> id1 = new AtomicReference<>();
+    final AtomicReference<Integer> id2 = new AtomicReference<>();
+    assertTrue(activities.stream().anyMatch(
+        it -> {
+          final var result = Objects.equals(it.type(), "BiteBanana") && Objects.equals(it.anchorId(), null);
+          if (result) id1.set(it.id());
+          return result;
+        }
+    ));
+
+    assertTrue(activities.stream().anyMatch(
+        it -> {
+          final var result = Objects.equals(it.type(), "BiteBanana") && Objects.equals(it.anchorId(), id1.get());
           if (result) id2.set(it.id());
           return result;
         }
