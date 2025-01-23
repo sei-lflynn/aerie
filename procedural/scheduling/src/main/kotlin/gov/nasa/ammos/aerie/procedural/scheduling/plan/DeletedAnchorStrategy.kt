@@ -16,12 +16,12 @@ enum class DeletedAnchorStrategy {
    *
    * Consider the anchor chain `A <- B <- C`, where `A` starts at an absolute time and
    * `B` and `C` are anchored.
-   * - If `A` is deleted with [ReAnchor], `B` will be set to start at the absolute time `A.startTime + B.offset`.
+   * - If `A` is deleted with [PreserveTree], `B` will be set to start at the absolute time `A.startTime + B.offset`.
    *   `C` will be unchanged.
-   * - If `B` is deleted with [ReAnchor], `C` will be anchored to `A` with a new offset equal to `B.offset + C.offset`.
+   * - If `B` is deleted with [PreserveTree], `C` will be anchored to `A` with a new offset equal to `B.offset + C.offset`.
    *
    * If an activity is anchored to the end of the deleted activity, the delete activity's duration is assumed to be 0,
    * which may change the ultimate start time of the anchored activity.
    */
-  ReAnchor,
+  PreserveTree,
 }

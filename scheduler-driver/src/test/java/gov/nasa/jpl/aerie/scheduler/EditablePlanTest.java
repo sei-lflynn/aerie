@@ -1,6 +1,7 @@
 package gov.nasa.jpl.aerie.scheduler;
 
 import gov.nasa.ammos.aerie.procedural.scheduling.plan.EditablePlan;
+import gov.nasa.ammos.aerie.procedural.scheduling.utils.DefaultEditablePlanDriver;
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.DirectiveStart;
 import gov.nasa.jpl.aerie.merlin.driver.MissionModel;
 import gov.nasa.jpl.aerie.merlin.protocol.types.Duration;
@@ -8,7 +9,7 @@ import gov.nasa.jpl.aerie.merlin.protocol.types.SerializedValue;
 import gov.nasa.jpl.aerie.scheduler.model.PlanInMemory;
 import gov.nasa.jpl.aerie.scheduler.model.PlanningHorizon;
 import gov.nasa.jpl.aerie.scheduler.model.Problem;
-import gov.nasa.jpl.aerie.scheduler.plan.InMemoryEditablePlan;
+import gov.nasa.jpl.aerie.scheduler.plan.SchedulerPlanEditAdapter;
 import gov.nasa.jpl.aerie.scheduler.plan.SchedulerToProcedurePlanAdapter;
 import gov.nasa.jpl.aerie.scheduler.simulation.CheckpointSimulationFacade;
 import gov.nasa.jpl.aerie.scheduler.simulation.SimulationFacade;
@@ -43,7 +44,7 @@ public class EditablePlanTest {
     final var schedulerModel = SimulationUtility.getBananaSchedulerModel();
     facade = new CheckpointSimulationFacade(horizon, missionModel, schedulerModel);
     problem = new Problem(missionModel, horizon, facade, schedulerModel);
-    plan = new InMemoryEditablePlan(
+    final var editAdapter = new SchedulerPlanEditAdapter(
         missionModel,
         new DirectiveIdGenerator(0),
         new SchedulerToProcedurePlanAdapter(
@@ -56,6 +57,7 @@ public class EditablePlanTest {
         facade,
         problem::getActivityType
     );
+    plan = new DefaultEditablePlanDriver(editAdapter);
   }
 
   @AfterEach

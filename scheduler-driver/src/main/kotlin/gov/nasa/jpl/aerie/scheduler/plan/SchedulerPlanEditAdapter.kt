@@ -3,7 +3,7 @@ package gov.nasa.jpl.aerie.scheduler.plan
 import gov.nasa.jpl.aerie.merlin.driver.MissionModel
 import gov.nasa.jpl.aerie.merlin.protocol.types.Duration
 import gov.nasa.ammos.aerie.procedural.scheduling.simulation.SimulateOptions
-import gov.nasa.ammos.aerie.procedural.scheduling.utils.EasyEditablePlanDriver
+import gov.nasa.ammos.aerie.procedural.scheduling.utils.DefaultEditablePlanDriver
 import gov.nasa.ammos.aerie.procedural.scheduling.utils.PerishableSimulationResults
 import gov.nasa.jpl.aerie.scheduler.simulation.SimulationFacade
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.AnyDirective
@@ -15,35 +15,36 @@ import gov.nasa.jpl.aerie.scheduler.model.*
 import gov.nasa.jpl.aerie.types.ActivityDirectiveId
 import java.time.Instant
 import kotlin.jvm.optionals.getOrNull
+import gov.nasa.ammos.aerie.procedural.timeline.plan.Plan;
 
 /*
  * An implementation of [EditablePlan] that stores the plan in memory for use in the internal scheduler.
  *
 
  */
-data class InMemoryEditablePlan(
+data class SchedulerPlanEditAdapter(
   private val missionModel: MissionModel<*>,
   private var idGenerator: DirectiveIdGenerator,
-  private val plan: SchedulerToProcedurePlanAdapter,
+  val plan: SchedulerToProcedurePlanAdapter,
   private val simulationFacade: SimulationFacade,
   private val lookupActivityType: (String) -> ActivityType
-) : EasyEditablePlanDriver(plan) {
+): Plan by plan, DefaultEditablePlanDriver.PlanEditAdapter {
 
   override fun generateDirectiveId(): ActivityDirectiveId = idGenerator.next()
-  override fun latestResultsInternal(): PerishableSimulationResults? {
+  override fun latestResults(): PerishableSimulationResults? {
     val merlinResults = simulationFacade.latestSimulationData.getOrNull() ?: return null
     return MerlinToProcedureSimulationResultsAdapter(merlinResults.driverResults, plan.copy(schedulerPlan = plan.duplicate()))
   }
 
-  override fun createInternal(directive: Directive<AnyDirective>) {
+  override fun create(directive: Directive<AnyDirective>) {
     plan.add(directive.toSchedulingActivity(lookupActivityType, true))
   }
 
-  override fun deleteInternal(id: ActivityDirectiveId) {
+  override fun delete(id: ActivityDirectiveId) {
     plan.remove(plan.activitiesById[id])
   }
 
-  override fun simulateInternal(options: SimulateOptions) {
+  override fun simulate(options: SimulateOptions) {
     simulationFacade.simulateWithResults(plan, options.pause.resolve(this))
   }
 

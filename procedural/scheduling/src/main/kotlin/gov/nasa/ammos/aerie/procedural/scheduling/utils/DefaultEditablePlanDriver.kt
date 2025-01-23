@@ -18,11 +18,11 @@ import java.lang.ref.WeakReference
  * The [EditablePlan] interface requires the implementor to perform some fairly complex
  * stateful operations, with a tangle of interdependent algorithmic guarantees.
  * Most of those operations are standard among all implementations though, so this driver
- * captures most of it in a reusable form. Just inherit from this class to make a valid
- * [EditablePlan].
+ * captures most of it in a reusable form. Just implement the must simpler [PlanEditAdapter]
+ * from this class to make a valid [EditablePlan].
  *
- * The subclass is still responsible for simulation and the basic context-free creation
- * and deletion operations. See the *Contracts* section of each abstract method's doc comment.
+ * The implementor is still responsible for simulation and the basic context-free creation
+ * and deletion operations. See the *Contracts* section of the interface methods' doc comments.
  */
 /*
  * ## Staleness checking
@@ -47,68 +47,71 @@ import java.lang.ref.WeakReference
  * The joint ownership freaks me out a wee bit, but I think it's safe because the commits are only used to keep the
  * previous sets from getting gc'ed in the event of a rollback. Only the plan object actually mutates the set.
  */
-abstract class EasyEditablePlanDriver(
-  private val plan: Plan
-): EditablePlan, Plan by plan {
-  /**
-   * Create a unique directive ID.
-   *
-   * *Contract:*
-   * - the implementor must return an ID that is distinct from any activity ID that was in the initial plan
-   *   or that has been returned from this method before during the implementor's lifetime.
-   */
-  protected abstract fun generateDirectiveId(): ActivityDirectiveId
+class DefaultEditablePlanDriver(
+  private val adapter: PlanEditAdapter
+): EditablePlan, Plan by adapter {
 
-  /**
-   * Create a directive in the plan.
-   *
-   * *Contracts*:
-   * - the driver will guarantee that the directive ID does not collide with any other directive currently in the plan.
-   * - the implementor must return the new directive in future calls to [Plan.directives], unless it is later deleted.
-   * - the implementor must include the directive in future input plans for simulation, unless it is later deleted.
-   */
-  protected abstract fun createInternal(directive: Directive<AnyDirective>)
+  interface PlanEditAdapter: Plan {
+    /**
+     * Create a unique directive ID.
+     *
+     * *Contract:*
+     * - the implementor must return an ID that is distinct from any activity ID that was in the initial plan
+     *   or that has been returned from this method before during the implementor's lifetime.
+     */
+    fun generateDirectiveId(): ActivityDirectiveId
 
-  /**
-   * Remove a directive from the plan, specified by ID.
-   */
-  protected abstract fun deleteInternal(id: ActivityDirectiveId)
+    /**
+     * Create a directive in the plan.
+     *
+     * *Contracts*:
+     * - the driver will guarantee that the directive ID does not collide with any other directive currently in the plan.
+     * - the implementor must return the new directive in future calls to [Plan.directives], unless it is later deleted.
+     * - the implementor must include the directive in future input plans for simulation, unless it is later deleted.
+     */
+    fun create(directive: Directive<AnyDirective>)
 
-  /**
-   * Get the latest simulation results.
-   *
-   * *Contract:*
-   * - the implementor must return equivalent results objects if this method is called multiple times without
-   *   updates.
-   *
-   * The implementor doesn't have to return the exact same *instance* each time if no updates are made (i.e. referential
-   * equality isn't required, only structural equality).
-   */
-  protected abstract fun latestResultsInternal(): PerishableSimulationResults?
+    /**
+     * Remove a directive from the plan, specified by ID.
+     */
+    fun delete(id: ActivityDirectiveId)
 
-  /**
-   * Simulate the current plan.
-   *
-   * *Contracts:*
-   * - all prior creations and deletions must be reflected in the simulation run.
-   * - the results corresponding to this run must be returned from future calls to [latestResultsInternal]
-   *   until the next time [simulateInternal] is called.
-   */
-  protected abstract fun simulateInternal(options: SimulateOptions)
+    /**
+     * Get the latest simulation results.
+     *
+     * *Contract:*
+     * - the implementor must return equivalent results objects if this method is called multiple times without
+     *   updates.
+     *
+     * The implementor doesn't have to return the exact same *instance* each time if no updates are made (i.e. referential
+     * equality isn't required, only structural equality).
+     */
+    fun latestResults(): PerishableSimulationResults?
 
-  /**
-   * Optional validation hook for new activities.
-   *
-   * The default implementation checks if the activity is within the bounds of the plan. The implementor can
-   * add additional checks by overriding this method and calling `super.validate(directive)`. Implementor
-   * should throw if the directive is invalid.
-   */
-  protected open fun validate(directive: Directive<AnyDirective>) {
-    if (directive.startTime > duration()) {
-      throw Exception("New activity with id ${directive.id.id()} would start after the end of the plan")
-    }
-    if (directive.start is DirectiveStart.Absolute && directive.startTime.isNegative) {
-      throw Exception("New activity with id ${directive.id.id()} would start before the beginning of the plan")
+    /**
+     * Simulate the current plan.
+     *
+     * *Contracts:*
+     * - all prior creations and deletions must be reflected in the simulation run.
+     * - the results corresponding to this run must be returned from future calls to [latestResultsInternal]
+     *   until the next time [simulateInternal] is called.
+     */
+    fun simulate(options: SimulateOptions)
+
+    /**
+     * Optional validation hook for new activities.
+     *
+     * The default implementation checks if the activity is within the bounds of the plan. The implementor can
+     * add additional checks by overriding this method and calling `super.validate(directive)`. Implementor
+     * should throw if the directive is invalid.
+     */
+    fun validate(directive: Directive<AnyDirective>) {
+      if (directive.startTime > duration()) {
+        throw Exception("New activity with id ${directive.id.id()} would start after the end of the plan")
+      }
+      if (directive.start is DirectiveStart.Absolute && directive.startTime.isNegative) {
+        throw Exception("New activity with id ${directive.id.id()} would start before the beginning of the plan")
+      }
     }
   }
 
@@ -119,7 +122,7 @@ abstract class EasyEditablePlanDriver(
      * A record of the simulation results objects that were up-to-date when the commit
      * was created.
      *
-     * This has SHARED OWNERSHIP with [EasyEditablePlanDriver]; the editable plan may add more to
+     * This has SHARED OWNERSHIP with [DefaultEditablePlanDriver]; the editable plan may add more to
      * this list AFTER the commit is created.
      */
     val upToDateSimResultsSet: MutableSet<WeakReference<PerishableSimulationResults>>
@@ -140,7 +143,7 @@ abstract class EasyEditablePlanDriver(
   private var upToDateSimResultsSet: MutableSet<WeakReference<PerishableSimulationResults>> = mutableSetOf()
 
   override fun latestResults(): SimulationResults? {
-    val internalResults = latestResultsInternal()
+    val internalResults = adapter.latestResults()
 
     // kotlin checks structural equality by default, not referential equality.
     val isStale = internalResults?.inputDirectives()?.toSet() != directives().toSet()
@@ -153,7 +156,7 @@ abstract class EasyEditablePlanDriver(
 
   override fun create(directive: NewDirective): ActivityDirectiveId {
     class ParentSearchException(id: ActivityDirectiveId, size: Int): Exception("Expected one parent activity with id $id, found $size")
-    val id = generateDirectiveId()
+    val id = adapter.generateDirectiveId()
     val parent = when (val s = directive.start) {
       is DirectiveStart.Anchor -> {
         val parentList = directives()
@@ -167,9 +170,9 @@ abstract class EasyEditablePlanDriver(
     val resolved = directive.resolve(id, parent)
     uncommittedChanges.add(Edit.Create(resolved))
 
-    validate(resolved)
+    adapter.validate(resolved)
 
-    createInternal(resolved)
+    adapter.create(resolved)
 
     for (simResults in upToDateSimResultsSet) {
       simResults.get()?.setStale(true)
@@ -199,7 +202,7 @@ abstract class EasyEditablePlanDriver(
             if (childStart.parentId == directive.id) {
               when (strategy) {
                 DeletedAnchorStrategy.Error -> throw Exception("Cannot delete an activity that has anchors pointing to it without a ${DeletedAnchorStrategy::class.java.simpleName}")
-                DeletedAnchorStrategy.ReAnchor -> {
+                DeletedAnchorStrategy.PreserveTree -> {
                   directivesToDelete.add(d)
                   val start = when (val parentStart = directive.start) {
                     is DirectiveStart.Absolute -> DirectiveStart.Absolute(parentStart.time + childStart.offset)
@@ -223,11 +226,11 @@ abstract class EasyEditablePlanDriver(
 
     for (d in directivesToDelete) {
       uncommittedChanges.add(Edit.Delete(d))
-      deleteInternal(d.id)
+      adapter.delete(d.id)
     }
     for (d in directivesToCreate) {
       uncommittedChanges.add(Edit.Create(d))
-      createInternal(d)
+      adapter.create(d)
     }
 
     for (simResults in upToDateSimResultsSet) {
@@ -251,7 +254,7 @@ abstract class EasyEditablePlanDriver(
   }
 
   override fun delete(id: ActivityDirectiveId, strategy: DeletedAnchorStrategy) {
-    val matchingDirectives = plan.directives().filter { it.id == id }.collect()
+    val matchingDirectives = directives().filter { it.id == id }.collect()
     if (matchingDirectives.isEmpty()) throw Exception("attempted to delete activity by ID that does not exist: $id")
     if (matchingDirectives.size > 1) throw Exception("multiple activities with ID found: $id")
 
@@ -290,8 +293,8 @@ abstract class EasyEditablePlanDriver(
     uncommittedChanges = mutableListOf()
     for (edit in result) {
       when (edit) {
-        is Edit.Create -> deleteInternal(edit.directive.id)
-        is Edit.Delete -> createInternal(edit.directive)
+        is Edit.Create -> adapter.delete(edit.directive.id)
+        is Edit.Delete -> adapter.create(edit.directive)
       }
     }
     for (simResult in upToDateSimResultsSet) {
@@ -305,7 +308,7 @@ abstract class EasyEditablePlanDriver(
   }
 
   override fun simulate(options: SimulateOptions): SimulationResults {
-    simulateInternal(options)
+    adapter.simulate(options)
     return latestResults()!!
   }
 

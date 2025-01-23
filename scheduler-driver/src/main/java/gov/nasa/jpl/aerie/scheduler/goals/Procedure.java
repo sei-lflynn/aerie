@@ -1,5 +1,6 @@
 package gov.nasa.jpl.aerie.scheduler.goals;
 
+import gov.nasa.ammos.aerie.procedural.scheduling.utils.DefaultEditablePlanDriver;
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.ExternalEvent;
 import gov.nasa.jpl.aerie.merlin.driver.MissionModel;
 import gov.nasa.jpl.aerie.merlin.protocol.types.SerializedValue;
@@ -12,7 +13,7 @@ import gov.nasa.jpl.aerie.scheduler.model.Plan;
 import gov.nasa.jpl.aerie.scheduler.model.PlanningHorizon;
 import gov.nasa.jpl.aerie.scheduler.model.Problem;
 import gov.nasa.jpl.aerie.scheduler.model.SchedulingActivity;
-import gov.nasa.jpl.aerie.scheduler.plan.InMemoryEditablePlan;
+import gov.nasa.jpl.aerie.scheduler.plan.SchedulerPlanEditAdapter;
 import gov.nasa.jpl.aerie.scheduler.plan.SchedulerToProcedurePlanAdapter;
 import gov.nasa.jpl.aerie.scheduler.simulation.SimulationFacade;
 import gov.nasa.jpl.aerie.scheduler.solver.ConflictSatisfaction;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static gov.nasa.jpl.aerie.scheduler.plan.InMemoryEditablePlan.toSchedulingActivity;
+import static gov.nasa.jpl.aerie.scheduler.plan.SchedulerPlanEditAdapter.toSchedulingActivity;
 
 public class Procedure extends Goal {
   private final Path jarPath;
@@ -64,13 +65,15 @@ public class Procedure extends Goal {
         problem.getRealExternalProfiles()
     );
 
-    final var editablePlan = new InMemoryEditablePlan(
+    final var editAdapter = new SchedulerPlanEditAdapter(
         missionModel,
         idGenerator,
         planAdapter,
         simulationFacade,
         lookupActivityType::apply
     );
+
+    final var editablePlan = new DefaultEditablePlanDriver(editAdapter);
 
     procedureMapper.deserialize(SerializedValue.of(this.args)).run(editablePlan);
 
