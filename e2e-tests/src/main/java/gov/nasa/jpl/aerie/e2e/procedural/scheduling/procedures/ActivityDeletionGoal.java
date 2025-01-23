@@ -11,10 +11,10 @@ import gov.nasa.jpl.aerie.types.ActivityDirectiveId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Creates three activities in a chain of anchors, then deletes one.
+ * If `whichToDelete` is negative, this leaves all three activities.
  */
 @SchedulingProcedure
 public record ActivityDeletionGoal(int whichToDelete, DeletedAnchorStrategy anchorStrategy) implements Goal {

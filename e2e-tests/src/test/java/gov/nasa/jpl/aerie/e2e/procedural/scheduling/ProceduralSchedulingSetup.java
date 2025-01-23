@@ -1,7 +1,6 @@
 package gov.nasa.jpl.aerie.e2e.procedural.scheduling;
 
 import com.microsoft.playwright.Playwright;
-import gov.nasa.jpl.aerie.e2e.types.GoalInvocationId;
 import gov.nasa.jpl.aerie.e2e.utils.GatewayRequests;
 import gov.nasa.jpl.aerie.e2e.utils.HasuraRequests;
 import org.junit.jupiter.api.AfterAll;
