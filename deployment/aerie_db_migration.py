@@ -151,6 +151,9 @@ class Hasura:
     if migration_ids.pop(0)[0] != 'migration_id':
       exit_with_error("Error while fetching current schema information.")
 
+    # Get the current migration status from Hasura's perspective for comparison
+    migrate_status = self.get_migrate_status()
+
     # migration_ids now looks like [['0'], ['1'], ... ['n']]
     prev_id = -1
     cur_id = 0
@@ -159,7 +162,14 @@ class Hasura:
       if cur_id != prev_id + 1:
         exit_with_error(f'Gap detected in applied migrations. \n\tLast migration: {prev_id} \tNext migration: {cur_id}'
                         f'\n\tTo resolve, manually revert all migrations following {prev_id}, then run this script again.')
-      # Ensure migration is marked as applied
+
+      # Skip marking a migration as applied if it is already applied
+      split = migrate_status[cur_id].split()
+      if split[0] == i[0] and len(split) == 4:
+        prev_id = cur_id
+        continue
+
+      # If a migration is not marked as applied, mark it as such
       self.migrate('apply', f'--skip-execution --version {cur_id}', no_output=True)
       prev_id = cur_id
 
