@@ -291,7 +291,7 @@ class DefaultEditablePlanDriver(
 
     val result = uncommittedChanges
     uncommittedChanges = mutableListOf()
-    for (edit in result) {
+    for (edit in result.reversed()) {
       when (edit) {
         is Edit.Create -> adapter.delete(edit.directive.id)
         is Edit.Delete -> adapter.create(edit.directive)

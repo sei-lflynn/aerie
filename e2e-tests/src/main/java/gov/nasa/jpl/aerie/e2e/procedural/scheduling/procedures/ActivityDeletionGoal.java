@@ -39,6 +39,8 @@ public record ActivityDeletionGoal(int whichToDelete, DeletedAnchorStrategy anch
         Map.of("biteSize", SerializedValue.of(2))
     );
 
+    plan.commit();
+
     if (whichToDelete >= 0) {
       plan.delete(ids[whichToDelete], anchorStrategy);
     }
