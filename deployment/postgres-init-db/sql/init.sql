@@ -12,6 +12,7 @@ begin;
   -- Migrations
   \ir tables/migrations/schema_migrations.sql
   \ir applied_migrations.sql
+  \ir views/migrations/applied_migrations_view.sql
 
   -- Util Functions
   \ir functions/util_functions/shared_update_functions.sql
