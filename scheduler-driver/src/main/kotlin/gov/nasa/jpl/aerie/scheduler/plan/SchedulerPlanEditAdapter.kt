@@ -20,7 +20,6 @@ import gov.nasa.ammos.aerie.procedural.timeline.plan.Plan;
 /*
  * An implementation of [EditablePlan] that stores the plan in memory for use in the internal scheduler.
  *
-
  */
 data class SchedulerPlanEditAdapter(
   private val missionModel: MissionModel<*>,

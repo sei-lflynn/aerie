@@ -186,7 +186,6 @@ class DefaultEditablePlanDriver(
   override fun delete(directive: Directive<AnyDirective>, strategy: DeletedAnchorStrategy) {
     val directives = directives().cache()
 
-
     val directivesToDelete: Set<Directive<AnyDirective>>
     val directivesToCreate: Set<Directive<AnyDirective>>
 
@@ -197,6 +196,8 @@ class DefaultEditablePlanDriver(
       directivesToDelete = mutableSetOf(directive)
       directivesToCreate = mutableSetOf()
       for (d in directives) {
+        // the when block is used to smart-cast d.start to an Anchor. This is basically just an if statement.
+        // Basically we're just iterating through looking for activities anchored to the deleted one.
         when (val childStart = d.start) {
           is DirectiveStart.Anchor -> {
             if (childStart.parentId == directive.id) {
@@ -219,6 +220,7 @@ class DefaultEditablePlanDriver(
               }
             }
           }
+          // if d.start wasn't an anchor, do nothing
           else -> {}
         }
       }
