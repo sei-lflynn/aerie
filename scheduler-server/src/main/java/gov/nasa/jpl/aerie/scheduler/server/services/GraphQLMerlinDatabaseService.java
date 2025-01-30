@@ -426,12 +426,6 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     for (final var activity : plan.getActivities()) {
       if(activity.getParentActivity().isPresent()) continue; // Skip generated activities
       if (!activity.isNew()) {
-        //add duration to parameters if controllable
-        if (activity.getType().getDurationType() instanceof DurationType.Controllable durationType){
-          if (!activity.arguments().containsKey(durationType.parameterName())){
-            activity.addArgument(durationType.parameterName(), schedulerModel.serializeDuration(activity.duration()));
-          }
-        }
         final var actFromInitialPlan = initialPlan.getActivityById(activity.id());
         //if act was present in initial plan
         final var activityDirectiveFromSchedulingDirective = new ActivityDirective(
