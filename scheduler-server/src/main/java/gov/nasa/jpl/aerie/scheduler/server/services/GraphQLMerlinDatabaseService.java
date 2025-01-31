@@ -622,9 +622,9 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
       //add duration to parameters if controllable
       final var insertionObjectArguments = Json.createObjectBuilder();
-      if(act.getType().getDurationType() instanceof DurationType.Controllable durationType){
-        if(!act.arguments().containsKey(durationType.parameterName())){
-          insertionObjectArguments.add(durationType.parameterName(), serializedValueP.unparse(schedulerModel.serializeDuration(act.duration())));
+      if(act.getType().getDurationType() instanceof DurationType.Controllable(String parameterName)){
+        if(!act.arguments().containsKey(parameterName)){
+          insertionObjectArguments.add(parameterName, serializedValueP.unparse(schedulerModel.serializeDuration(act.duration())));
         }
       }
 
@@ -718,7 +718,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
   {
     if (ids.isEmpty()) return;
     ensurePlanExists(planId);
-    final var idString = ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+    final var idString = ids.stream().map($ -> String.valueOf($.id())).collect(Collectors.joining(","));
     final var request = """
         mutation deletePlanActivityDirectives($planId: Int! = %d, $directiveIds: [Int!]! = [%s]) {
           delete_activity_directive(where: {_and: {plan_id: {_eq: $planId}, id: {_in: $directiveIds}}}) {

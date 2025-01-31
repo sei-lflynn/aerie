@@ -198,6 +198,9 @@ class DefaultEditablePlanDriver(
       for (d in directives) {
         // the when block is used to smart-cast d.start to an Anchor. This is basically just an if statement.
         // Basically we're just iterating through looking for activities anchored to the deleted one.
+
+        // Kotlin doesn't smart cast objects whose origins it can't statically check for race conditions,
+        // which is why I have to bind `d.start` to a local variable. Then `childStart` can be smart cast.
         when (val childStart = d.start) {
           is DirectiveStart.Anchor -> {
             if (childStart.parentId == directive.id) {
