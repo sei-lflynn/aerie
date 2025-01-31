@@ -6,6 +6,7 @@ import gov.nasa.ammos.aerie.procedural.timeline.collections.Directives
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.AnyDirective
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.Directive
 import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.DirectiveStart
+import gov.nasa.ammos.aerie.procedural.timeline.payloads.activities.DirectiveStart.Anchor
 import gov.nasa.ammos.aerie.procedural.timeline.plan.Plan
 import gov.nasa.ammos.aerie.procedural.timeline.plan.SimulationResults
 import gov.nasa.jpl.aerie.types.ActivityDirectiveId
@@ -158,7 +159,7 @@ class DefaultEditablePlanDriver(
     class ParentSearchException(id: ActivityDirectiveId, size: Int): Exception("Expected one parent activity with id $id, found $size")
     val id = adapter.generateDirectiveId()
     val parent = when (val s = directive.start) {
-      is DirectiveStart.Anchor -> {
+      is Anchor -> {
         val parentList = directives()
           .filter { it.id == s.parentId }
           .collect(totalBounds())
@@ -195,36 +196,28 @@ class DefaultEditablePlanDriver(
     } else {
       directivesToDelete = mutableSetOf(directive)
       directivesToCreate = mutableSetOf()
-      for (d in directives) {
-        // the when block is used to smart-cast d.start to an Anchor. This is basically just an if statement.
-        // Basically we're just iterating through looking for activities anchored to the deleted one.
-
-        // Kotlin doesn't smart cast objects whose origins it can't statically check for race conditions,
-        // which is why I have to bind `d.start` to a local variable. Then `childStart` can be smart cast.
-        when (val childStart = d.start) {
-          is DirectiveStart.Anchor -> {
-            if (childStart.parentId == directive.id) {
-              when (strategy) {
-                DeletedAnchorStrategy.Error -> throw Exception("Cannot delete an activity that has anchors pointing to it without a ${DeletedAnchorStrategy::class.java.simpleName}")
-                DeletedAnchorStrategy.PreserveTree -> {
-                  directivesToDelete.add(d)
-                  val start = when (val parentStart = directive.start) {
-                    is DirectiveStart.Absolute -> DirectiveStart.Absolute(parentStart.time + childStart.offset)
-                    is DirectiveStart.Anchor -> DirectiveStart.Anchor(
-                      parentStart.parentId,
-                      parentStart.offset + childStart.offset,
-                      parentStart.anchorPoint,
-                      childStart.estimatedStart
-                    )
-                  }
-                  directivesToCreate.add(d.copy(start = start))
-                }
-                else -> throw Error("internal error; unreachable")
-              }
+      val childActivities = directives.filter {
+        it.start is Anchor
+            && (it.start as Anchor).parentId == directive.id
+      }
+      for (c in childActivities) {
+        when (strategy) {
+          DeletedAnchorStrategy.Error -> throw Exception("Cannot delete an activity that has anchors pointing to it without a ${DeletedAnchorStrategy::class.java.simpleName}")
+          DeletedAnchorStrategy.PreserveTree -> {
+            directivesToDelete.add(c)
+            val cStart = c.start as Anchor // Cannot smart cast
+            val start = when (val parentStart = directive.start) {
+              is DirectiveStart.Absolute -> DirectiveStart.Absolute(parentStart.time + cStart.offset)
+              is Anchor -> Anchor(
+                parentStart.parentId,
+                parentStart.offset + cStart.offset,
+                parentStart.anchorPoint,
+                cStart.estimatedStart
+              )
             }
+            directivesToCreate.add(c.copy(start = start))
           }
-          // if d.start wasn't an anchor, do nothing
-          else -> {}
+          else -> throw Error("internal error; unreachable")
         }
       }
     }
@@ -248,7 +241,7 @@ class DefaultEditablePlanDriver(
   private fun deleteCascadeRecursive(directive: Directive<AnyDirective>, allDirectives: Directives<AnyDirective>): List<Directive<AnyDirective>> {
     val recurse = allDirectives.collect().flatMap { d ->
       when (val s = d.start) {
-        is DirectiveStart.Anchor -> {
+        is Anchor -> {
           if (s.parentId == directive.id) deleteCascadeRecursive(d, allDirectives)
           else listOf()
         }
