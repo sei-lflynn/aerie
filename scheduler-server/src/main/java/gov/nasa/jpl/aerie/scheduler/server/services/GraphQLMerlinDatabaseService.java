@@ -696,7 +696,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
       final var id = mod.id().id();
       request.append("""
                          update_%d: update_activity_directive_by_pk(pk_columns: {id: %d, plan_id: %d}, _set: $activity_%d) {
-                           affected_rows
+                          id
                          }
                          """.formatted(id, id, planId.id(), id));
 
