@@ -52,6 +52,7 @@ public class DatabaseDeletionTests extends ProceduralSchedulingSetup {
         "1h",
         JsonValue.EMPTY_JSON_OBJECT
     );
+    hasura.updatePlanRevisionSchedulingSpec(planId);
 
     var plan = hasura.getPlan(planId);
     assertEquals(1, plan.activityDirectives().size());
@@ -84,6 +85,7 @@ public class DatabaseDeletionTests extends ProceduralSchedulingSetup {
         JsonValue.EMPTY_JSON_OBJECT,
         Json.createObjectBuilder().add("anchor_id", bite)
     );
+    hasura.updatePlanRevisionSchedulingSpec(planId);
 
     var plan = hasura.getPlan(planId);
     var activities = plan.activityDirectives();
@@ -158,6 +160,7 @@ public class DatabaseDeletionTests extends ProceduralSchedulingSetup {
         JsonValue.EMPTY_JSON_OBJECT,
         Json.createObjectBuilder().add("anchor_id", grow2)
     );
+    hasura.updatePlanRevisionSchedulingSpec(planId);
 
     var plan = hasura.getPlan(planId);
     var activities = plan.activityDirectives();
@@ -217,6 +220,7 @@ public class DatabaseDeletionTests extends ProceduralSchedulingSetup {
         JsonValue.EMPTY_JSON_OBJECT,
         Json.createObjectBuilder().add("anchor_id", bite)
     );
+    hasura.updatePlanRevisionSchedulingSpec(planId);
 
 
     var plan = hasura.getPlan(planId);
@@ -251,6 +255,7 @@ public class DatabaseDeletionTests extends ProceduralSchedulingSetup {
         JsonValue.EMPTY_JSON_OBJECT,
         Json.createObjectBuilder().add("anchor_id", bite)
     );
+    hasura.updatePlanRevisionSchedulingSpec(planId);
 
 
     var plan = hasura.getPlan(planId);
