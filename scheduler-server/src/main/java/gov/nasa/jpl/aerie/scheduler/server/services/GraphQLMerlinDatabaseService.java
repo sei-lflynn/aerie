@@ -429,8 +429,9 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     final var toModify = new ArrayList<ActivityModification>();
     for (final var activity : plan.getActivities()) {
       if(activity.getParentActivity().isPresent()) continue; // Skip generated activities
-      if (!activity.isNew()) {
-        final var actFromInitialPlan = initialPlan.getActivityById(activity.id()).get();
+      final var actFromInitialPlanOptional = initialPlan.getActivityById(activity.id());
+      if (actFromInitialPlanOptional.isPresent()) {
+        final var actFromInitialPlan = actFromInitialPlanOptional.get();
         //if act was present in initial plan
         final var activityDirectiveFromSchedulingDirective = new ActivityDirective(
             activity.startOffset(),
@@ -505,9 +506,15 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     }
 
     if (newState.anchorId() != oldState.anchorId()) {
-      operations.add(
-          $ -> $.add("anchor_id", newState.anchorId().id())
-      );
+      if (newState.anchorId() != null) {
+        operations.add(
+            $ -> $.add("anchor_id", newState.anchorId().id())
+        );
+      } else {
+        operations.add(
+            $ -> $.addNull("anchor_id")
+        );
+      }
     }
 
     if (newState.anchoredToStart() != oldState.anchoredToStart()) {

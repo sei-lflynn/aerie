@@ -116,10 +116,10 @@ public class SimulationFacadeTest {
     final var actTypeBite = problem.getActivityType("BiteBanana");
     final var actTypePeel = problem.getActivityType("PeelBanana");
 
-    var act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel, t1, null, Map.of("peelDirection", SerializedValue.of("fromStem")), null, null, true, false);
+    var act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel, t1, null, Map.of("peelDirection", SerializedValue.of("fromStem")), null, null, true);
     plan.add(act1);
 
-    var act2 = SchedulingActivity.of(idGenerator.next(), actTypeBite, t2, null, Map.of("biteSize", SerializedValue.of(0.1)), null, null, true, false);
+    var act2 = SchedulingActivity.of(idGenerator.next(), actTypeBite, t2, null, Map.of("biteSize", SerializedValue.of(0.1)), null, null, true);
     plan.add(act2);
 
     return plan;
@@ -131,7 +131,7 @@ public class SimulationFacadeTest {
     final var actTypePeel = problem.getActivityType("PeelBanana");
     final var actTypeBite = problem.getActivityType("BiteBanana");
 
-    var act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel, t1, t2, Map.of("peelDirection", SerializedValue.of("fromStem")), null, null, true, false);
+    var act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel, t1, t2, Map.of("peelDirection", SerializedValue.of("fromStem")), null, null, true);
     plan.add(act1);
 
     final var goal = new CoexistenceGoal.Builder()
@@ -284,10 +284,10 @@ public class SimulationFacadeTest {
     final var actTypePeel = problem.getActivityType("PeelBanana");
 
     SchedulingActivity act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel,
-                                                    t0, Duration.ZERO, Map.of(), null, null, true, false);
+                                                    t0, Duration.ZERO, Map.of(), null, null, true);
 
     SchedulingActivity act2 = SchedulingActivity.of(idGenerator.next(), actTypePeel,
-                                                    t2, Duration.ZERO, Map.of(), null, null, true, false);
+                                                    t2, Duration.ZERO, Map.of(), null, null, true);
 
     //create an "external tool" that insists on a few fixed activities
     final var externalActs = java.util.List.of(
@@ -326,10 +326,10 @@ public class SimulationFacadeTest {
     actTypePeel.setResourceConstraint(constraint);
 
     SchedulingActivity act1 = SchedulingActivity.of(idGenerator.next(), actTypePeel,
-                                                    t0, Duration.ZERO, Map.of(), null, null, true, false);
+                                                    t0, Duration.ZERO, Map.of(), null, null, true);
 
     SchedulingActivity act2 = SchedulingActivity.of(idGenerator.next(), actTypePeel,
-                                                    t2, Duration.ZERO, Map.of(), null, null, true, false);
+                                                    t2, Duration.ZERO, Map.of(), null, null, true);
 
     //create an "external tool" that insists on a few fixed activities
     final var externalActs = java.util.List.of(

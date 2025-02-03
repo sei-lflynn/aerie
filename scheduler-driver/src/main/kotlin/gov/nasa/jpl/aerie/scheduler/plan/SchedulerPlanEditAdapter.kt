@@ -36,7 +36,7 @@ data class SchedulerPlanEditAdapter(
   }
 
   override fun create(directive: Directive<AnyDirective>) {
-    plan.add(directive.toSchedulingActivity(lookupActivityType, true))
+    plan.add(directive.toSchedulingActivity(lookupActivityType))
   }
 
   override fun delete(id: ActivityDirectiveId) {
@@ -53,7 +53,7 @@ data class SchedulerPlanEditAdapter(
   }
 
   companion object {
-    @JvmStatic fun Directive<AnyDirective>.toSchedulingActivity(lookupActivityType: (String) -> ActivityType, isNew: Boolean) = SchedulingActivity(
+    @JvmStatic fun Directive<AnyDirective>.toSchedulingActivity(lookupActivityType: (String) -> ActivityType) = SchedulingActivity(
         id,
         lookupActivityType(type),
         when (val s = start) {
@@ -82,7 +82,6 @@ data class SchedulerPlanEditAdapter(
         is DirectiveStart.Absolute -> true
         is DirectiveStart.Anchor -> s.anchorPoint == DirectiveStart.Anchor.AnchorPoint.Start
       },
-      isNew,
       name
     )
   }

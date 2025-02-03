@@ -1238,7 +1238,6 @@ public class PrioritySolver implements Solver {
               null,
               null,
               true,
-              true,
               null
           );
           Duration computedDuration = null;
@@ -1299,7 +1298,6 @@ public class PrioritySolver implements Solver {
           instantiatedArguments,
           null,
           null,
-          true,
           true
       ));
     } else if (activityExpression.type().getDurationType() instanceof DurationType.Fixed dt) {
@@ -1323,7 +1321,6 @@ public class PrioritySolver implements Solver {
               activityExpression.type()),
           null,
           null,
-          true,
           true
       ));
     } else if (activityExpression.type().getDurationType() instanceof DurationType.Parametric dt) {
@@ -1349,7 +1346,6 @@ public class PrioritySolver implements Solver {
                 instantiatedArgs,
                 null,
                 null,
-                true,
                 true
             );
             history.add(new EquationSolvingAlgorithms.FunctionCoordinate<>(start, start.plus(duration)), new ActivityMetadata(activity));

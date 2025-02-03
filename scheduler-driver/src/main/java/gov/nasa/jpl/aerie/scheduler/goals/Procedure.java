@@ -82,7 +82,7 @@ public class Procedure extends Goal {
     }
     for (final var edit : editablePlan.getTotalDiff()) {
       if (edit instanceof Edit.Create c) {
-        newActivities.add(toSchedulingActivity(c.getDirective(), lookupActivityType::apply, true));
+        newActivities.add(toSchedulingActivity(c.getDirective(), lookupActivityType::apply));
       } else if (!(edit instanceof Edit.Delete)) {
         throw new IllegalStateException("Unexpected edit type: " + edit);
       }
