@@ -465,7 +465,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     for (final var act: toAdd) {
       if (act.anchorId() != null) {
         toModify.add(new ActivityModification(
-            act.id(),
+            ids.get(act.id()),
             List.of($ -> $.add("anchor_id", ids.get(act.anchorId()).id()))
         ));
       }
