@@ -398,6 +398,8 @@ public enum GQL {
           startOffset: start_offset
           type
           name
+          anchorId: anchor_id
+          anchoredToStart: anchored_to_start
         }
         constraint_specification {
           constraint_id

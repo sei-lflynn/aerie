@@ -11,6 +11,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
+import javax.json.JsonObjectBuilder;
 import javax.json.JsonValue;
 import javax.json.JsonObject;
 import java.io.IOException;
@@ -225,12 +226,15 @@ public class HasuraRequests implements AutoCloseable {
     makeRequest(GQL.DELETE_PLAN, variables);
   }
 
-  public int insertActivityDirective(int planId, String type, String startOffset, JsonObject arguments) throws IOException {
+  public int insertActivityDirective(int planId, String type, String startOffset, JsonObject arguments, JsonObjectBuilder ...extraArgs) throws IOException {
     final var insertActivityBuilder = Json.createObjectBuilder()
                                           .add("plan_id", planId)
                                           .add("type", type)
                                           .add("start_offset", startOffset)
                                           .add("arguments", arguments);
+    for (final var extraArg : extraArgs) {
+      insertActivityBuilder.addAll(extraArg);
+    }
     final var variables = Json.createObjectBuilder().add("activityDirectiveInsertInput", insertActivityBuilder).build();
     return makeRequest(GQL.CREATE_ACTIVITY_DIRECTIVE, variables).getJsonObject("createActivityDirective").getInt("id");
   }
