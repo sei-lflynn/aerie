@@ -44,6 +44,7 @@ public class PostgresProfileQueryHandler implements AutoCloseable {
     profileIds = new HashMap<>();
     profileDurations = new HashMap<>();
     this.datasetId = datasetId;
+    prepareStatements();
   }
 
   public void prepareStatements() throws SQLException {
@@ -78,7 +79,6 @@ public class PostgresProfileQueryHandler implements AutoCloseable {
    * */
   public void uploadResourceProfiles(final ResourceProfiles resourceProfiles) {
     try {
-      prepareStatements();
       // Add new profiles to DB
       for (final var realEntry : resourceProfiles.realProfiles().entrySet()) {
         if (!profileIds.containsKey(realEntry.getKey())) {
