@@ -279,7 +279,6 @@ public record SynchronousSchedulerAgent(
         );
       }
 
-      merlinDatabaseService.updatePlanActivityDirectiveAnchors(specification.planId(), solutionPlan, uploadIdMap);
 
       //collect results and notify subscribers of success
       final var results = collectResults(solutionPlan, uploadIdMap, goals);

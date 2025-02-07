@@ -141,10 +141,6 @@ class MockMerlinDatabaseService implements MerlinDatabaseService.OwnerRole {
   }
 
   @Override
-  public void updatePlanActivityDirectiveAnchors(final PlanId planId, final Plan plan, final Map<ActivityDirectiveId, ActivityDirectiveId> uploadIdMap)
-  {}
-
-  @Override
   public void ensurePlanExists(final PlanId planId) {
 
   }
