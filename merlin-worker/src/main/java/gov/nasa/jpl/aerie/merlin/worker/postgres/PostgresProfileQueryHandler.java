@@ -25,29 +25,22 @@ import static gov.nasa.jpl.aerie.merlin.server.remotes.postgres.PostgresParsers.
 import static gov.nasa.jpl.aerie.merlin.server.remotes.postgres.PostgresParsers.realProfileTypeP;
 
 /**
- * Utility class to handle upload of resource profiles to the database. This class allows for each upload to have its
- * own Connection object.
+ * Utility class to handle upload of resource profiles to the database.
  * */
 public class PostgresProfileQueryHandler implements AutoCloseable {
   private final Connection connection;
   private final HashMap<String, Integer> profileIds;
   private final HashMap<String, Duration> profileDurations;
 
-  private PreparedStatement postProfileStatement;
-  private PreparedStatement postSegmentsStatement;
-  private PreparedStatement updateDurationStatement;
-
-  private long datasetId;
+  private final PreparedStatement postProfileStatement;
+  private final PreparedStatement postSegmentsStatement;
+  private final PreparedStatement updateDurationStatement;
 
   public PostgresProfileQueryHandler(DataSource dataSource, long datasetId) throws SQLException {
-    this.connection = dataSource.getConnection();
+    connection = dataSource.getConnection();
     profileIds = new HashMap<>();
     profileDurations = new HashMap<>();
-    this.datasetId = datasetId;
-    prepareStatements();
-  }
 
-  public void prepareStatements() throws SQLException {
     final String postProfilesSql =
         //language=sql
         """
