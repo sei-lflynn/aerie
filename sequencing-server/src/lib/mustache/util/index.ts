@@ -1,11 +1,12 @@
 /* A wrapper for Handlebars, so that `sequencing-server` isn't polluted with helper registration and the like. */
 import Handlebars from "handlebars";
 import { addTime as addTimeFull, subtractTime as subtractTimeFull, InstanttoSTOL, STOLToInstant, SeqNToInstant, InstanttoSeqN, TextToISO8601 } from "./time.js";
-
+import { getEnv } from "../../../env.js";
+import { SequencingLanguage } from "../enums/language.js";
 
 // initialized to environment variable, but this can be changed at runtime.
 const environment = {
-    language: "SEQN"
+    language: getEnv().SEQUENCING_LANGUAGE
 }
 
 /////////////// AERIE HELPERS ///////////////
@@ -20,7 +21,7 @@ function subtractTime(startTime: string, duration: string) {
 
 // helper to flatten out array
 function flatten(array: any[]): string {
-    if (environment.language === "STOL") {
+    if (environment.language === SequencingLanguage.STOL || environment.language === SequencingLanguage.TEXT) {
         return new Handlebars.SafeString(`[${array.join(", ")}]`).toString();
     }
     else {
@@ -30,10 +31,10 @@ function flatten(array: any[]): string {
 
 // helper to clean dates. must be manually invoked by the user, just in case. here, Text and SeqN are handled the same.
 function formatAsDate(date: string): string {
-    if (environment.language === "STOL") {
+    if (environment.language === SequencingLanguage.STOL) {
         return InstanttoSTOL(STOLToInstant(date))
     }
-    else if (environment.language === "Text") {
+    else if (environment.language === SequencingLanguage.TEXT) {
         return TextToISO8601(date)
     }
     else {
@@ -52,7 +53,7 @@ Handlebars.registerHelper("format-as-date", formatAsDate)
 export class Mustache {
     private template: HandlebarsTemplateDelegate<any>
 
-    constructor(template: string, language?: string) {
+    constructor(template: string, language?: SequencingLanguage) {
         environment.language = language ?? environment.language
         this.template = Handlebars.compile(template)
     }
@@ -61,7 +62,11 @@ export class Mustache {
         return this.template(data)
     }
 
-    public setLanguage(language: string) {
+    public setLanguage(language: SequencingLanguage) {
         environment.language = language
+    }
+
+    public getLanguage(): SequencingLanguage {
+        return environment.language
     }
 }

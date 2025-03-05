@@ -1,14 +1,15 @@
 import { ParsedDoyString, ParsedDurationString, ParsedYmdString, TimeTypes } from './types/time.js';
 import { Temporal } from '@js-temporal/polyfill';
+import { SequencingLanguage } from '../enums/language.js';
 
 
 /////////////// SEQUENCING-SERVER-SPECIFIC HELPERS ///////////////
-export function addTime(startTime: string, duration: string, environment: { language: string }): string {
+export function addTime(startTime: string, duration: string, environment: { language: SequencingLanguage }): string {
   let date: Temporal.Instant
-  if (environment.language === "STOL") {
+  if (environment.language === SequencingLanguage.STOL) {
     date = STOLToInstant(startTime)
   }
-  else if (environment.language === "Text") {
+  else if (environment.language === SequencingLanguage.TEXT) {
     date = Temporal.Instant.from(TextToISO8601(startTime))
   }
   else {
@@ -24,23 +25,23 @@ export function addTime(startTime: string, duration: string, environment: { lang
   }
   date = date.add(dur)
 
-  if (environment.language === "STOL") {
+  if (environment.language === SequencingLanguage.STOL) {
     return InstanttoSTOL(date)
   }
-  else if (environment.language === "Text") {
+  else if (environment.language === SequencingLanguage.TEXT) {
     return InstantToText(date)
   }
-  else {
+  else { 
     return InstanttoSeqN(date)
   }
 }
 
-export function subtractTime(startTime: string, duration: string, environment: { language: string }): string {
+export function subtractTime(startTime: string, duration: string, environment: { language: SequencingLanguage }): string {
   let date: Temporal.Instant
-  if (environment.language === "STOL") {
+  if (environment.language === SequencingLanguage.STOL) {
     date = STOLToInstant(startTime)
   }
-  else if (environment.language === "Text") {
+  else if (environment.language === SequencingLanguage.TEXT) {
     date = Temporal.Instant.from(TextToISO8601(startTime))
   }
   else {
@@ -56,10 +57,10 @@ export function subtractTime(startTime: string, duration: string, environment: {
   }
   date = date.subtract(dur)
 
-  if (environment.language === "STOL") {
+  if (environment.language === SequencingLanguage.STOL) {
     return InstanttoSTOL(date)
   }
-  else if (environment.language === "Text") {
+  else if (environment.language === SequencingLanguage.TEXT) {
     return InstantToText(date)
   }
   else { // Text and SeqN are handled the same.
