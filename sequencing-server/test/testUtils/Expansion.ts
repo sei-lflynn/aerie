@@ -73,6 +73,51 @@ export async function removeExpansion(graphqlClient: GraphQLClient, expansionId:
   );
 }
 
+export async function insertSequenceTemplate(
+  graphqlClient: GraphQLClient,
+  name: string,
+  parcelId: number,
+  modelId: number,
+  activityTypeName: string,
+  language: string,
+  templateDefinition: string
+): Promise<number> {
+  const res = await graphqlClient.request<{
+    addTemplate: { id: number }
+  }>(
+    gql`
+      mutation CreateSequenceTemplate(
+        $name: String!,
+        $parcelId: Int!,
+        $modelId: Int!,
+        $activityTypeName: String!,
+        $language: String!,
+        $templateDefinition: String!
+      ) {
+        addTemplate(
+          name: $name,
+          parcelId: $parcelId,
+          modelId: $modelId,
+          activityTypeName: $activityTypeName,
+          language: $language,
+          templateDefinition: $templateDefinition
+        ) {
+          id
+        }
+      }
+    `,
+    {
+      name,
+      parcelId,
+      modelId,
+      activityTypeName,
+      language,
+      templateDefinition
+    },
+  );
+  return res.addTemplate.id;
+}
+
 export async function insertExpansionSet(
   graphqlClient: GraphQLClient,
   parcelId: number,
