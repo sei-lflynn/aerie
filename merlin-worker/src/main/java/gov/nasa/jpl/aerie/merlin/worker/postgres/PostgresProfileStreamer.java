@@ -27,7 +27,7 @@ public class PostgresProfileStreamer implements Consumer<ResourceProfiles>, Auto
 
   @Override
   public void close() {
-    queryQueue.shutdown();
+    queryQueue.close();  // This waits for all submitted jobs to complete before returning
     try {
         queryHandler.close();
     } catch (SQLException e) {
