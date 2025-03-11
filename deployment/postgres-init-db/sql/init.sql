@@ -28,7 +28,7 @@ begin;
   -- UI
   \ir init_ui.sql
 
--- Merlin
+  -- Merlin
   \ir init_merlin.sql
 
   -- Scheduling

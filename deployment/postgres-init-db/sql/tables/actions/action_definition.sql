@@ -68,7 +68,7 @@ begin
                  action_file_path) as
            (
              select NEW.id,
-                    uf.name
+                    encode(uf.path, 'escape') as path
              from merlin.uploaded_file uf
              where uf.id = NEW.action_file_id
            )

@@ -37,7 +37,7 @@ comment on column actions.action_run.error is e''
 comment on column actions.action_run.results is e''
   'The results produced by the action run.';
 comment on column actions.action_run.status is e''
-  'The status of the action run. pending -> in-progress -> failed or complete';
+  'The status of the action run.';
 comment on column actions.action_run.action_definition_id is e''
   'The ID of the definition of the action.';
 
@@ -59,7 +59,7 @@ begin
                     NEW.parameters,
                     NEW.action_definition_id,
                     ad.workspace_id,
-                    uf.name
+                    encode(uf.path, 'escape') as path
              from actions.action_definition ad
                     left join merlin.uploaded_file uf on uf.id = ad.action_file_id
                     where ad.id = NEW.action_definition_id
