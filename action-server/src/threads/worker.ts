@@ -9,6 +9,15 @@ export async function runAction(task: ActionTask ): Promise<ActionResponse> {
   console.log("runAction", task);
   ActionsDbManager.init();
   const pool = ActionsDbManager.getDb();
-  const jsRun = await jsExecute(task.actionJS, task.parameters, task.settings, task.auth, pool, task.workspaceId);
-  return jsRun;
+
+  let jsRun: ActionResponse;
+  try {
+    jsRun = await jsExecute(task.actionJS, task.parameters, task.settings, task.auth, pool, task.workspaceId);
+    // release DB connection
+    await pool.end();
+    return jsRun;
+  } catch (e) {
+    await pool.end();
+    throw e;
+  }
 }
