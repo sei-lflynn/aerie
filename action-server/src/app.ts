@@ -5,19 +5,22 @@ import { isActionRunRequest, validateActionRunRequest } from "./utils/validators
 import { ActionResponse } from "./type/types";
 import { ActionsDbManager } from "./db";
 import { Pool, PoolClient, Notification } from "pg";
+import { Piscina } from 'piscina';
+import * as path from "node:path";
+
+
 
 import { readFile } from "fs/promises";
 import { corsMiddleware, jsonErrorMiddleware } from "./middleware";
-import * as path from "node:path";
+import { WorkerPool } from "./threads/workerPool";
+
 
 const app = express();
+app.use(express.json()); // Middleware for parsing JSON bodies
+app.use(corsMiddleware); // TODO: set more strict CORS rules
+app.use(jsonErrorMiddleware);
+WorkerPool.setup()
 
-// Middleware for parsing JSON bodies
-app.use(express.json());
-
-// temporary CORS middleware to allow access from all origins
-// TODO: set more strict CORS rules
-app.use(corsMiddleware);
 
 // Route for running a JS action
 app.post("/run-action", async (req, res) => {
@@ -48,7 +51,7 @@ const server = app.listen(port, () => {
   console.debug(`Server running on port ${port}`);
 });
 
-app.use(jsonErrorMiddleware);
+
 
 // -- begin PG event handling
 
@@ -123,27 +126,29 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
   // todo: use piscina worker pool to run in separate thread
   // todo: run the action file, put results in the same DB row and mark status as successful
   // todo: try/catch - need to handle errors manually since not in express handler?
-  const pool = ActionsDbManager.getDb();
+  const pool = ActionsDbManager.getDb(); // cant seralize pool as there is data that is unserializable DOMException: DataCloneError
   const workspaceId = payload.workspace_id;
-  const jsRun = await jsExecute(actionJS, parameters, settings, "", pool, workspaceId);
+  const run = await WorkerPool.submitTask({
+    actionJS, parameters, settings, workspaceId
+  });
 
   const response = {
-    results: jsRun.results,
-    console: jsRun.console,
-    errors: jsRun.errors,
+    results: run.results,
+    console: run.console,
+    errors: run.errors,
   } as ActionResponse;
   console.log("finished run");
   console.log(response);
 
-  const status = jsRun.errors ? "failed" : "complete";
+  const status = run.errors ? "failed" : "complete";
 
   const logStr: string = [
     // todo replace this with proper log stringification
-    jsRun.console.error.join("\n"),
-    jsRun.console.warn.join("\n"),
-    jsRun.console.log.join("\n"),
-    jsRun.console.info.join("\n"),
-    jsRun.console.debug.join("\n"),
+    run.console.error.join("\n"),
+    run.console.warn.join("\n"),
+    run.console.log.join("\n"),
+    run.console.info.join("\n"),
+    run.console.debug.join("\n"),
   ].join("\n");
 
 
@@ -160,8 +165,8 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
       RETURNING *;
   `, [
       status,
-      JSON.stringify(jsRun.errors),
-      JSON.stringify(jsRun.results),
+      JSON.stringify(run.errors),
+      JSON.stringify(run.results),
       logStr,
       payload.action_run_id,
     ]);

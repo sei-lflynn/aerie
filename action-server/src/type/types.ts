@@ -1,3 +1,5 @@
+import { Pool } from "pg";
+
 export type ActionRunRequest = {
   actionJS: string;
   parameters: Record<string, any>;
@@ -17,6 +19,14 @@ export type ConsoleOutput = {
   error: string[];
   warn: string[];
 };
+
+export type ActionTask = {
+  actionJS : string,
+  parameters :  Record<string, any>,
+  settings :  Record<string, any>,
+  auth?: string,
+  workspaceId : number
+}
 
 export type ActionResponse =
   | {
