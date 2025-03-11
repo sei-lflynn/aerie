@@ -1,6 +1,8 @@
 import type { SequencingLanguage } from "./lib/mustache/enums/language";
 
 export type Env = {
+  ACTION_DB_USER: string;
+  ACTION_DB_PASSWORD: string;
   DICTIONARY_PARSER_PLUGIN: string,
   HASURA_GRAPHQL_ADMIN_SECRET: string;
   LOG_FILE: string;
@@ -20,6 +22,8 @@ export type Env = {
 };
 
 export const defaultEnv: Env = {
+  ACTION_DB_USER: '',
+  ACTION_DB_PASSWORD: '',
   DICTIONARY_PARSER_PLUGIN : '/ampcs-dictionary-parser/ampcs-parser.js',
   HASURA_GRAPHQL_ADMIN_SECRET: '',
   LOG_FILE: 'console',
@@ -40,6 +44,8 @@ export const defaultEnv: Env = {
 
 export function getEnv(): Env {
   const { env } = process;
+  const ACTION_DB_USER = env['ACTION_DB_USER'] ?? defaultEnv.ACTION_DB_USER;
+  const ACTION_DB_PASSWORD = env['ACTION_DB_PASSWORD'] ?? defaultEnv.ACTION_DB_PASSWORD;
   const DICTIONARY_PARSER_PLUGIN = env['DICTIONARY_PARSER_PLUGIN'] ?? defaultEnv.DICTIONARY_PARSER_PLUGIN;
   const HASURA_GRAPHQL_ADMIN_SECRET = env['HASURA_GRAPHQL_ADMIN_SECRET'] ?? defaultEnv.HASURA_GRAPHQL_ADMIN_SECRET;
   const LOG_FILE = env['LOG_FILE'] ?? defaultEnv.LOG_FILE;
@@ -58,6 +64,8 @@ export function getEnv(): Env {
     env['SEQUENCING_MAX_WORKER_HEAP_MB'] ?? defaultEnv.SEQUENCING_MAX_WORKER_HEAP_MB;
   const TRANSPILER_ENABLED = env['TRANSPILER_ENABLED'] ?? defaultEnv.TRANSPILER_ENABLED;
   return {
+    ACTION_DB_USER,
+    ACTION_DB_PASSWORD,
     DICTIONARY_PARSER_PLUGIN,
     HASURA_GRAPHQL_ADMIN_SECRET,
     LOG_FILE,
