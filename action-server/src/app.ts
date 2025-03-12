@@ -114,9 +114,9 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
     taskError = {message: err.message, stack: err.stack};
   }
 
-  const duration = performance.now() - start;
+  const duration = Math.round(performance.now() - start);
   const status = taskError || run.errors ? "failed" : "complete";
-  console.log(`Finished run ${actionRunId} in ${duration * 1000}s - ${status}`);
+  console.log(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
   console.info(run);
 
   let logStr: string = '';
@@ -139,14 +139,16 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
         status = $1,
         error = $2::jsonb,
         results = $3::jsonb,
-        logs = $4
-      WHERE id = $5
+        logs = $4,
+        duration = $5
+      WHERE id = $6
       RETURNING *;
   `, [
       status,
       JSON.stringify(taskError ? taskError : run.errors),
       run ? JSON.stringify(run.results) : undefined,
       logStr,
+      duration,
       payload.action_run_id,
     ]);
     console.log("Updated action_run:", res.rows[0]);

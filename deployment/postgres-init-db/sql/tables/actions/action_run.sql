@@ -12,6 +12,7 @@ create table actions.action_run (
 
   created_by text,
   created_at timestamptz not null default now(),
+  duration integer,
 
   constraint action_run_synthetic_key
     primary key (id),
@@ -38,6 +39,8 @@ comment on column actions.action_run.results is e''
   'The results produced by the action run.';
 comment on column actions.action_run.status is e''
   'The status of the action run.';
+comment on column actions.action_run.duration is e''
+  'The duration of the action run, if it has completed; null otherwise';
 comment on column actions.action_run.action_definition_id is e''
   'The ID of the definition of the action.';
 
