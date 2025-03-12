@@ -103,5 +103,6 @@ begin;
   alter default privileges in schema actions grant execute on routines to :"action_user";
 
   -- The Action Server needs to be able to write sequences
-  grant insert, update on table sequencing.user_sequence to :"action_user";
+  grant create, usage on schema sequencing to :"action_user";
+  grant select, insert, update, delete on table sequencing.user_sequence to :"action_user";
 end;
