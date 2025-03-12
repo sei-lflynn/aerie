@@ -23,8 +23,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
   CREATE USER "$SEQUENCING_DB_USER" WITH PASSWORD '$SEQUENCING_DB_PASSWORD';
   \echo 'Done!'
 
+  \echo 'Initializing action_server role...'
+  CREATE ROLE action_server;
+
   \echo 'Initializing action user...'
   CREATE USER "$ACTION_DB_USER" WITH PASSWORD '$ACTION_DB_PASSWORD';
+  GRANT action_server TO "$ACTION_DB_USER";
   \echo 'Done!'
 
   \echo 'Initializing aerie database...'

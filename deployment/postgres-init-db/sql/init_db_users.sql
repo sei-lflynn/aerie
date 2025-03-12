@@ -95,14 +95,14 @@ begin;
   -- Action DB Permissions --
   ---------------------------
   -- The Action User currently has control of all tables in the actions schema
-  grant create, usage on schema actions to :"action_user";
-  grant select, insert, update, delete on all tables in schema actions to :"action_user";
-  grant execute on all routines in schema actions to :"action_user";
+  grant create, usage on schema actions to action_server;
+  grant select, insert, update, delete on all tables in schema actions to action_server;
+  grant execute on all routines in schema actions to action_server;
 
-  alter default privileges in schema actions grant select, insert, update, delete on tables to :"action_user";
-  alter default privileges in schema actions grant execute on routines to :"action_user";
+  alter default privileges in schema actions grant select, insert, update, delete on tables to action_server;
+  alter default privileges in schema actions grant execute on routines to action_server;
 
   -- The Action Server needs to be able to write sequences
-  grant create, usage on schema sequencing to :"action_user";
-  grant select, insert, update, delete on table sequencing.user_sequence to :"action_user";
+  grant create, usage on schema sequencing to action_server;
+  grant select, insert, update, delete on table sequencing.user_sequence to action_server;
 end;
