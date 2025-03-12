@@ -21,12 +21,26 @@ export type ConsoleOutput = {
 };
 
 export type ActionTask = {
-  actionJS : string,
-  parameters :  Record<string, any>,
-  settings :  Record<string, any>,
-  auth?: string,
-  workspaceId : number
-}
+  actionJS: string;
+  parameters: Record<string, any>;
+  settings: Record<string, any>;
+  auth?: string;
+  workspaceId: number;
+};
+
+export type ActionDefinitionInsertedPayload = {
+  action_definition_id: number;
+  action_file_path: string;
+};
+
+export type ActionRunInsertedPayload = {
+  action_run_id: string;
+  settings: Record<string, any>;
+  parameters: Record<string, any>;
+  action_definition_id: number;
+  workspace_id: number;
+  action_file_path: string;
+};
 
 export type ActionResponse =
   | {

@@ -1,17 +1,11 @@
 import type { Pool, PoolConfig } from "pg";
 import pg from "pg";
-import {configuration} from "./config";
+import { configuration } from "./config";
 // import getLogger from './utils/logger.js';
 
 const { Pool: DbPool } = pg;
 
-const {
-  AERIE_DB,
-  AERIE_DB_HOST,
-  AERIE_DB_PORT,
-  ACTION_DB_USER,
-  ACTION_DB_PASSWORD,
-} = configuration();
+const { AERIE_DB, AERIE_DB_HOST, AERIE_DB_PORT, ACTION_DB_USER, ACTION_DB_PASSWORD } = configuration();
 // const logger = getLogger('packages/db/db');
 const logger = console;
 
@@ -29,7 +23,7 @@ export class ActionsDbManager {
         port: parseInt(AERIE_DB_PORT, 10),
         database: AERIE_DB,
         user: ACTION_DB_USER,
-        password: ACTION_DB_PASSWORD
+        password: ACTION_DB_PASSWORD,
       };
 
       logger.info(`Creating PG pool`);

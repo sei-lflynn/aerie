@@ -1,7 +1,7 @@
 import * as vm from "node:vm";
 import { ActionResponse, ActionResults, ConsoleOutput } from "../type/types";
-import {Actions} from "aerie-actions/dist/helpers";
-import {Pool, PoolClient} from "pg";
+import { Actions } from "../dist/helpers";
+import { PoolClient } from "pg";
 
 // function getConsoleHandlers(oldConsole: any) {
 //   return {
@@ -30,7 +30,7 @@ export const jsExecute = async (
   settings: Record<string, any>,
   authToken: string | undefined,
   client: PoolClient,
-  workspaceId: number
+  workspaceId: number,
 ): Promise<ActionResponse> => {
   /** Array to store console output. */
   const consoleOutput: ConsoleOutput = { log: [], debug: [], info: [], error: [], warn: [] };
