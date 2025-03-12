@@ -4,6 +4,7 @@ export interface Config {
   AERIE_DB_PORT: string;
   ACTION_DB_USER: string;
   ACTION_DB_PASSWORD: string;
+  ACTION_LOCAL_STORE: string;
   ACTION_WORKER_NUM: string;
   ACTION_MAX_WORKER_NUM: string;
   HASURA_GRAPHQL_ADMIN_SECRET: string;
@@ -23,6 +24,7 @@ export const configuration = (): Config => {
     AERIE_DB_PORT: env.AERIE_DB_PORT ?? "5432",
     ACTION_DB_USER: env.ACTION_DB_USER ?? "postgres",
     ACTION_DB_PASSWORD: env.ACTION_DB_PASSWORD ?? "password",
+    ACTION_LOCAL_STORE: env.ACTION_LOCAL_STORE ?? "/usr/src/app/action_file_store",
     ACTION_WORKER_NUM: env.ACTION_WORKER_NUM ?? "8",
     ACTION_MAX_WORKER_NUM: env.ACTION_MAX_WORKER_NUM ?? "8",
     HASURA_GRAPHQL_ADMIN_SECRET: env.HASURA_GRAPHQL_ADMIN_SECRET ?? "",
