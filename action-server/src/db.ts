@@ -1,22 +1,17 @@
 import type { Pool, PoolConfig } from "pg";
 import pg from "pg";
+import {configuration} from "./config";
 // import getLogger from './utils/logger.js';
-// import { getEnv } from './env.js';
 
 const { Pool: DbPool } = pg;
 
 const {
-  AERIE_DB_HOST: host,
-  AERIE_DB_PORT: port,
-  SEQUENCING_DB_USER: user,
-  SEQUENCING_DB_PASSWORD: password,
-  // } = getEnv();
-} = {
-  AERIE_DB_HOST: "postgres",
-  SEQUENCING_DB_PASSWORD: "postgres",
-  AERIE_DB_PORT: "5432",
-  SEQUENCING_DB_USER: "postgres",
-};
+  AERIE_DB,
+  AERIE_DB_HOST,
+  AERIE_DB_PORT,
+  ACTION_DB_USER,
+  ACTION_DB_PASSWORD,
+} = configuration();
 // const logger = getLogger('packages/db/db');
 const logger = console;
 
@@ -30,15 +25,15 @@ export class ActionsDbManager {
   static init() {
     try {
       const config: PoolConfig = {
-        database: "aerie",
-        host,
-        password,
-        port: parseInt(port, 10),
-        user,
+        host: AERIE_DB_HOST,
+        port: parseInt(AERIE_DB_PORT, 10),
+        database: AERIE_DB,
+        user: ACTION_DB_USER,
+        password: ACTION_DB_PASSWORD
       };
 
-      logger.info(`Postgres Config:`);
-      logger.info(`
+      logger.info(`Creating PG pool`);
+      logger.debug(`
       {
          database: ${config.database},
          host: ${config.host},

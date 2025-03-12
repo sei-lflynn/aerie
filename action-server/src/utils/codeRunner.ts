@@ -1,7 +1,7 @@
 import * as vm from "node:vm";
 import { ActionResponse, ActionResults, ConsoleOutput } from "../type/types";
 import {Actions} from "aerie-actions/dist/helpers";
-import {Pool} from "pg";
+import {Pool, PoolClient} from "pg";
 
 // function getConsoleHandlers(oldConsole: any) {
 //   return {
@@ -29,7 +29,7 @@ export const jsExecute = async (
   parameters: Record<string, any>,
   settings: Record<string, any>,
   authToken: string | undefined,
-  pool: Pool,
+  client: PoolClient,
   workspaceId: number
 ): Promise<ActionResponse> => {
   /** Array to store console output. */
@@ -66,7 +66,7 @@ export const jsExecute = async (
   try {
     vm.runInContext(code, context);
     // todo: main runs outside of VM - is that OK?
-    const actions = new Actions(pool, workspaceId);
+    const actions = new Actions(client, workspaceId);
     const results = await context.main(parameters, settings, actions);
     return { results, console: consoleOutput, errors: null };
   } catch (error: any) {

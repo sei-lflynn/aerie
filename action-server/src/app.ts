@@ -1,56 +1,29 @@
 import express from "express";
+import * as path from "node:path";
+import { readFile } from "fs/promises";
+import { Pool, PoolClient } from "pg";
+
 import { configuration } from "./config";
-import { extractSchemas, jsExecute } from "./utils/codeRunner";
-import { isActionRunRequest, validateActionRunRequest } from "./utils/validators";
+import { extractSchemas } from "./utils/codeRunner";
 import { ActionResponse } from "./type/types";
 import { ActionsDbManager } from "./db";
-import { Pool, PoolClient, Notification } from "pg";
-import { Piscina } from 'piscina';
-import * as path from "node:path";
 
-
-
-import { readFile } from "fs/promises";
 import { corsMiddleware, jsonErrorMiddleware } from "./middleware";
-import { WorkerPool } from "./threads/workerPool";
+import { ActionWorkerPool } from "./threads/workerPool";
 
-
+// init express app and middleware
 const app = express();
 app.use(express.json()); // Middleware for parsing JSON bodies
 app.use(corsMiddleware); // TODO: set more strict CORS rules
 app.use(jsonErrorMiddleware);
-WorkerPool.setup()
 
-
-// Route for running a JS action
-app.post("/run-action", async (req, res) => {
-  // TODO: old - deprecate?
-  if (!isActionRunRequest(req.body)) {
-    const msg = validateActionRunRequest(req.body);
-    throw new Error(msg || "Unknown");
-  }
-  // req.body is a valid ActionRunRequest
-  const actionJS = req.body.actionJS;
-  const parameters = req.body.parameters;
-  const settings = req.body.settings;
-  const authToken = req.header("authorization");
-  if (!authToken) console.warn("No valid `authorization` header in action-run request");
-
-  // const jsRun = await jsExecute(actionJS, parameters, settings);
-
-  // res.send({
-  //   results: jsRun.results,
-  //   console: jsRun.console,
-  //   errors: jsRun.errors,
-  // } as ActionResponse);
-});
+// init the pool of workers that will execute actions
+ActionWorkerPool.setup()
 
 const port = configuration().PORT;
-
 const server = app.listen(port, () => {
   console.debug(`Server running on port ${port}`);
 });
-
 
 
 // -- begin PG event handling
@@ -69,13 +42,13 @@ type ActionDefinitionInsertedPayload = {
 };
 async function handleActionDefinition(payload: ActionDefinitionInsertedPayload) {
   console.log("action definition inserted");
-  // pre-process and extract schemas
-  const actionJS = await readFileFromStore(payload.action_file_path);
-  console.log(actionJS);
 
+  // read the action file and extract parameter/setting schemas
+  const actionJS = await readFileFromStore(payload.action_file_path);
+  // console.debug(actionJS);
   const schemas = await extractSchemas(actionJS);
 
-  console.log(`schemas ${JSON.stringify(schemas, null, 2)}`);
+  console.info(`schemas ${JSON.stringify(schemas, null, 2)}`);
 
   // todo: set schemas on the DB row?
   const pool = ActionsDbManager.getDb();
@@ -110,37 +83,41 @@ type ActionRunInsertedPayload = {
 };
 
 async function handleActionRun(payload: ActionRunInsertedPayload) {
-  console.log("action run inserted");
+  const actionRunId = payload.action_run_id;
+  const actionFilePath = payload.action_file_path;
+  console.log(`action run ${actionRunId} inserted (${actionFilePath})`);
+  console.info(payload);
   // event payload contains a file path for the action file which should be run
-  const actionJS = await readFileFromStore(payload.action_file_path);
-  console.log(actionJS);
-
-  const parameters = payload.parameters;
-  const settings = payload.settings;
+  const actionJS = await readFileFromStore(actionFilePath);
+  // console.debug(actionJS);
 
   // TODO: how to handle auth tokens??
   // const authToken = req.header("authorization");
   // if (!authToken) console.warn("No valid `authorization` header in action-run request");
 
-  // todo: maintain a queue and enqueue run requests
-  // todo: use piscina worker pool to run in separate thread
+  // todo: maintain a custom queue for enqueueing run requests *by workspace*
   // todo: run the action file, put results in the same DB row and mark status as successful
   // todo: try/catch - need to handle errors manually since not in express handler?
-  const pool = ActionsDbManager.getDb(); // cant seralize pool as there is data that is unserializable DOMException: DataCloneError
+  const {parameters, settings} = payload;
   const workspaceId = payload.workspace_id;
-  const run = await WorkerPool.submitTask({
-    actionJS, parameters, settings, workspaceId
-  });
+  const pool = ActionsDbManager.getDb(); // cant seralize pool as there is data that is unserializable DOMException: DataCloneError
+  console.log(`Submitting task to worker pool for action run ${actionRunId}`);
+  const start = performance.now();
 
-  const response = {
-    results: run.results,
-    console: run.console,
-    errors: run.errors,
-  } as ActionResponse;
-  console.log("finished run");
-  console.log(response);
+  let run;
+  try {
+    run = await ActionWorkerPool.submitTask({
+      actionJS, parameters, settings, workspaceId
+    }) satisfies ActionResponse;
+  } catch (err) {
+    console.error("Error running task:", err);
+    throw err;
+  }
 
+  const duration = performance.now() - start;
   const status = run.errors ? "failed" : "complete";
+  console.log(`Finished run ${actionRunId} in ${duration * 1000}s - ${status}`);
+  console.info(run);
 
   const logStr: string = [
     // todo replace this with proper log stringification
@@ -151,8 +128,7 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
     run.console.debug.join("\n"),
   ].join("\n");
 
-
-
+  // update action_run row in DB with status/results/errors/logs
   try {
     const res = await pool.query(`
       UPDATE actions.action_run
@@ -206,6 +182,7 @@ async function initDb() {
       await handleActionRun(payload);
     }
   });
+  console.log("Initialized PG event listeners");
 }
 initDb();
 

@@ -3,11 +3,11 @@ import { Piscina } from "piscina";
 import * as path from "node:path";
 import { ActionTask } from "../type/types";
 
-export class WorkerPool {
+export class ActionWorkerPool {
   private static piscina : Piscina<any, any>;
 
   static setup(){
-    WorkerPool.piscina = new Piscina({
+    ActionWorkerPool.piscina = new Piscina({
       filename: path.resolve(__dirname, "worker.js"),
       maxThreads: 1,
       minThreads: 1
@@ -16,7 +16,7 @@ export class WorkerPool {
 
   static async submitTask(task:ActionTask){
     try {
-      const result = await WorkerPool.piscina.run(task,
+      const result = await ActionWorkerPool.piscina.run(task,
           { name: 'runAction' }
       );
       return result;

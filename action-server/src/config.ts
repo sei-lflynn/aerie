@@ -1,4 +1,5 @@
 export interface Config {
+  AERIE_DB: string;
   AERIE_DB_HOST: string;
   AERIE_DB_PORT: string;
   ACTION_DB_USER: string;
@@ -17,6 +18,7 @@ export const configuration = (): Config => {
   const { env } = process;
 
   return {
+    AERIE_DB: env.AERIE_DB ?? "aerie",
     AERIE_DB_HOST: env.AERIE_DB_HOST ?? "postgres",
     AERIE_DB_PORT: env.AERIE_DB_PORT ?? "5432",
     ACTION_DB_USER: env.ACTION_DB_USER ?? "postgres",

@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "build": "npm run lint; tsc -p tsconfig.json",
+    "build": "npm run lint; npm run build-quiet",
+    "build-quiet": "tsc -p tsconfig.json",
     "clean": "rm -rf build",
-    "start": "npm run clean; npm run build; ts-node build/app.js",
+    "start": "npm run clean; npm run build-quiet; node build/app.js",
     "dev": "npm run clean; npm run build; nodemon --watch  src/**/*  -e ts --exec 'node --inspect=0.0.0.0:9229 --require ts-node/register build/app.js'",
     "test": "node -r ts-node/register tests/*.test.ts",
     "lint": "eslint src/**/*.ts",
