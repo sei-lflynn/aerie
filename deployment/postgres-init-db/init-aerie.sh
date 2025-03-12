@@ -23,9 +23,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
   CREATE USER "$SEQUENCING_DB_USER" WITH PASSWORD '$SEQUENCING_DB_PASSWORD';
   \echo 'Done!'
 
-  \echo 'Initializing action user...'
-  CREATE USER "$ACTION_DB_USER" WITH PASSWORD '$ACTION_DB_PASSWORD';
-
   \echo 'Initializing aerie database...'
   CREATE DATABASE aerie OWNER "$AERIE_USERNAME";
   \connect aerie
@@ -47,7 +44,6 @@ psql -v ON_ERROR_STOP=1 --username "$AERIE_USERNAME" --dbname "aerie" <<-EOSQL
   \set merlin_user $MERLIN_DB_USER
   \set scheduler_user $SCHEDULER_DB_USER
   \set sequencing_user $SEQUENCING_DB_USER
-  \set action_user $ACTION_DB_USER
   \echo 'Initializing aerie database objects...'
   \ir /docker-entrypoint-initdb.d/sql/init.sql
   \echo 'Done!'

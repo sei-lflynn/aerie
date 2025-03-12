@@ -1,16 +1,22 @@
 create schema actions;
 
-create role action_server;
+DO $$
+  DECLARE seq_user text;
+  BEGIN
+    SELECT into seq_user grantee
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'sequencing'
+      AND table_name = 'user_sequence'
+      and privilege_type = 'INSERT'
+      and grantee != (select current_user as usersss)
+    limit 1;
 
-grant create, usage on schema actions to action_server;
-grant select, insert, update, delete on all tables in schema actions to action_server;
-grant execute on all routines in schema actions to action_server;
-
-alter default privileges in schema actions grant select, insert, update, delete on tables to action_server;
-alter default privileges in schema actions grant execute on routines to action_server;
-
-grant create, usage on schema sequencing to action_server;
-grant select, insert, update, delete on table sequencing.user_sequence to action_server;
+    EXECUTE format('grant create, usage on schema actions to %I', seq_user);
+    EXECUTE format('grant select, insert, update, delete on all tables in schema actions to %I', seq_user);
+    EXECUTE format('grant execute on all routines in schema actions to %I', seq_user);
+    EXECUTE format('alter default privileges in schema actions grant select, insert, update, delete on tables to %I', seq_user);
+    EXECUTE format('alter default privileges in schema actions grant execute on routines to %I', seq_user);
+  END $$;
 
 create type actions.action_run_status as enum ('pending', 'in-progress', 'failed', 'complete');
 

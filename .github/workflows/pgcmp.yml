@@ -82,7 +82,7 @@ jobs:
       - name: Dump v2.8.0 Database
         run: |
           mkdir pgdumpV2_8_0
-          PGURI=postgres://"${POSTGRES_USER}":"${POSTGRES_PASSWORD}"@localhost:5432/aerie \
+          PGURI=postgres://"${AERIE_USERNAME}":"${AERIE_PASSWORD}"@localhost:5432/aerie \
           PGCMPOUTPUT=./pgdumpV2_8_0/AerieV2_8_0 \
           PGCLABEL=AerieV2_8_0 \
           PGBINDIR=/usr/bin \
@@ -109,8 +109,8 @@ jobs:
         run: |
           cd deployment
           cat << EOF > .env
-          AERIE_USERNAME=${POSTGRES_USER}
-          AERIE_PASSWORD=${POSTGRES_PASSWORD}
+          AERIE_USERNAME=${AERIE_USERNAME}
+          AERIE_PASSWORD=${AERIE_PASSWORD}
           EOF
           python -m pip install -r requirements.txt
           python aerie_db_migration.py migrate --apply --all
@@ -123,7 +123,7 @@ jobs:
       - name: Dump Migrated Database
         run: |
           mkdir pgdumpmigrated
-          PGURI=postgres://"${POSTGRES_USER}":"${POSTGRES_PASSWORD}"@localhost:5432/aerie \
+          PGURI=postgres://"${AERIE_USERNAME}":"${AERIE_PASSWORD}"@localhost:5432/aerie \
           PGCMPOUTPUT=./pgdumpmigrated/AerieMigratedUp \
           PGCLABEL=AerieMigratedUp \
           PGBINDIR=/usr/bin \
@@ -186,7 +186,7 @@ jobs:
       - name: Dump Current Database
         run: |
           mkdir pgdumpcurrent
-          PGURI=postgres://"${POSTGRES_USER}":"${POSTGRES_PASSWORD}"@localhost:5432/aerie \
+          PGURI=postgres://"${AERIE_USERNAME}":"${AERIE_PASSWORD}"@localhost:5432/aerie \
           PGCMPOUTPUT=./pgdumpcurrent/AerieCurrent \
           PGCLABEL=AerieCurrent \
           PGBINDIR=/usr/bin \
@@ -202,8 +202,8 @@ jobs:
         run: |
           cd deployment
           cat << EOF > .env
-          AERIE_USERNAME=${POSTGRES_USER}
-          AERIE_PASSWORD=${POSTGRES_PASSWORD}
+          AERIE_USERNAME=${AERIE_USERNAME}
+          AERIE_PASSWORD=${AERIE_PASSWORD}
           EOF
           python -m pip install -r requirements.txt
           python aerie_db_migration.py migrate --revert --all
@@ -211,7 +211,7 @@ jobs:
       - name: Dump Migrated Database
         run: |
           mkdir pgdumpmigrateddown
-          PGURI=postgres://"${POSTGRES_USER}":"${POSTGRES_PASSWORD}"@localhost:5432/aerie \
+          PGURI=postgres://"${AERIE_USERNAME}":"${AERIE_PASSWORD}"@localhost:5432/aerie \
           PGCMPOUTPUT=./pgdumpmigrateddown/AerieMigratedDown \
           PGCLABEL=AerieMigratedDown \
           PGBINDIR=/usr/bin \

@@ -9,9 +9,6 @@ begin;
   -- Create Non-Public Schemas
   \ir schemas.sql
 
-  -- Create roles
-  \ir roles.sql
-
   -- Migrations
   \ir tables/migrations/schema_migrations.sql
   \ir applied_migrations.sql
