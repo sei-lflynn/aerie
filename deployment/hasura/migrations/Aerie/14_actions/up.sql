@@ -1,5 +1,8 @@
 create schema actions;
 
+create role action_server;
+grant action_server to :"action_user";
+
 grant create, usage on schema actions to action_server;
 grant select, insert, update, delete on all tables in schema actions to action_server;
 grant execute on all routines in schema actions to action_server;
