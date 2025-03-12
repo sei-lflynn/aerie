@@ -12,6 +12,4 @@ drop type actions.action_run_status;
 
 drop schema actions cascade;
 
-drop role action_server;
-
 call migrations.mark_migration_rolled_back('14');

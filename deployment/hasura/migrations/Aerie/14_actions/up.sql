@@ -1,5 +1,3 @@
-create role action_server;
-
 create schema actions;
 
 grant create, usage on schema actions to action_server;
