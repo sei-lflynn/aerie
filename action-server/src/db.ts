@@ -37,7 +37,8 @@ export class ActionsDbManager {
       {
          database: ${config.database},
          host: ${config.host},
-         port: ${config.port}
+         port: ${config.port},
+         user: ${config.user}
       }`);
 
       ActionsDbManager.pool = new DbPool(config);

@@ -104,29 +104,32 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
   console.log(`Submitting task to worker pool for action run ${actionRunId}`);
   const start = performance.now();
 
-  let run;
+  let run, taskError;
   try {
     run = await ActionWorkerPool.submitTask({
       actionJS, parameters, settings, workspaceId
     }) satisfies ActionResponse;
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error running task:", err);
-    throw err;
+    taskError = {message: err.message, stack: err.stack};
   }
 
   const duration = performance.now() - start;
-  const status = run.errors ? "failed" : "complete";
+  const status = taskError || run.errors ? "failed" : "complete";
   console.log(`Finished run ${actionRunId} in ${duration * 1000}s - ${status}`);
   console.info(run);
 
-  const logStr: string = [
-    // todo replace this with proper log stringification
-    run.console.error.join("\n"),
-    run.console.warn.join("\n"),
-    run.console.log.join("\n"),
-    run.console.info.join("\n"),
-    run.console.debug.join("\n"),
-  ].join("\n");
+  let logStr: string = '';
+  if(run) {
+    logStr = [
+      // todo replace this with proper log stringification
+      run.console.error.join("\n"),
+      run.console.warn.join("\n"),
+      run.console.log.join("\n"),
+      run.console.info.join("\n"),
+      run.console.debug.join("\n"),
+    ].join("\n");
+  }
 
   // update action_run row in DB with status/results/errors/logs
   try {
@@ -141,8 +144,8 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
       RETURNING *;
   `, [
       status,
-      JSON.stringify(run.errors),
-      JSON.stringify(run.results),
+      JSON.stringify(taskError ? taskError : run.errors),
+      run ? JSON.stringify(run.results) : undefined,
       logStr,
       payload.action_run_id,
     ]);
