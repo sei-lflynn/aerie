@@ -338,6 +338,7 @@ describe('expansion', () => {
       return [
         R(props.activityInstance.startOffset).PREHEAT_OVEN({temperature: 70}),
         R(props.activityInstance.duration).PREHEAT_OVEN({temperature: 70}),
+        R(props.activityInstance.attributes.arguments.growingDuration).PREHEAT_OVEN({temperature: 71}),
       ];
     }
     `,
@@ -388,6 +389,13 @@ describe('expansion', () => {
       },
       {
         args: [{ value: 70, name: 'temperature', type: 'number' }],
+        metadata: { simulatedActivityId },
+        stem: 'PREHEAT_OVEN',
+        time: { tag: '01:00:00.000', type: TimingTypes.COMMAND_RELATIVE },
+        type: 'command',
+      },
+      {
+        args: [{ value: 71, name: 'temperature', type: 'number' }],
         metadata: { simulatedActivityId },
         stem: 'PREHEAT_OVEN',
         time: { tag: '01:00:00.000', type: TimingTypes.COMMAND_RELATIVE },
