@@ -1,6 +1,6 @@
 import * as vm from "node:vm";
 import { ActionResponse, ActionResults, ConsoleOutput } from "../type/types";
-import { Actions } from "../dist/helpers";
+import { Actions } from "aerie-actions/dist/helpers";
 import { PoolClient } from "pg";
 
 // function getConsoleHandlers(oldConsole: any) {

@@ -27,7 +27,7 @@
     "ts-node": "^10.9.2"
   },
   "dependencies": {
-    "aerie-actions": "file:../../aerie-actions",
+    "aerie-actions": "github:NASA-AMMOS/aerie-actions#34262aeb0e519aca04629bb022b083b16608f3b5",
     "pg": "^8.13.3",
     "piscina": "^5.0.0-alpha.0"
   }
