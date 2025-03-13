@@ -1,19 +1,14 @@
-// -- begin PG event handling
-
+import { readFile } from "node:fs/promises";
+import type http from "node:http";
 import * as path from "node:path";
-import { ActionDefinitionInsertedPayload, ActionResponse, ActionRunInsertedPayload } from "../type/types";
-import { extractSchemas } from "../utils/codeRunner";
+import type { Pool, PoolClient } from "pg";
+import { configuration } from "../config";
 import { ActionsDbManager } from "../db";
 import { ActionWorkerPool } from "../threads/workerPool";
-import { Pool, PoolClient } from "pg";
-import { readFile } from "fs/promises";
-import http from "http";
-import { configuration } from "../config";
+import type { ActionDefinitionInsertedPayload, ActionResponse, ActionRunInsertedPayload } from "../type/types";
+import { extractSchemas } from "../utils/codeRunner";
 
-let pool: Pool | undefined;
 let listenClient: PoolClient | undefined;
-
-// -- begin PG event handling
 
 async function readFileFromStore(fileName: string): Promise<string> {
   // read file from aerie file store and return [resolve] it as a string
@@ -51,8 +46,8 @@ async function handleActionDefinition(payload: ActionDefinitionInsertedPayload) 
       payload.action_definition_id,
     ]);
     console.log("Updated action_definition:", res.rows[0]);
-  } catch (err) {
-    console.error("Error updating row:", err);
+  } catch (error) {
+    console.error("Error updating row:", error);
   }
 }
 
@@ -84,9 +79,9 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
       settings,
       workspaceId,
     })) satisfies ActionResponse;
-  } catch (err: any) {
-    console.error("Error running task:", err);
-    taskError = { message: err.message, stack: err.stack };
+  } catch (error: any) {
+    console.error("Error running task:", error);
+    taskError = { message: error.message, stack: error.stack };
   }
 
   const duration = Math.round(performance.now() - start);
@@ -94,7 +89,7 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
   console.log(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
   console.info(run);
 
-  let logStr: string = "";
+  let logStr = "";
   if (run) {
     logStr = [
       // todo replace this with proper log stringification
@@ -122,7 +117,7 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
     `,
       [
         status,
-        JSON.stringify(taskError ? taskError : run?.errors),
+        JSON.stringify(taskError || run?.errors),
         run ? JSON.stringify(run.results) : undefined,
         logStr,
         duration,
@@ -130,19 +125,19 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
       ],
     );
     console.log("Updated action_run:", res.rows[0]);
-  } catch (err) {
-    console.error("Error updating row:", err);
+  } catch (error) {
+    console.error("Error updating row:", error);
   }
 }
 
 export async function setupListeners() {
   // initialize a database connection pool
   ActionsDbManager.init();
-  pool = ActionsDbManager.getDb();
+  const pool = ActionsDbManager.getDb();
 
   // todo: check for definitions/runs that may have been inserted while action-server was down (ie. missed notifs) & process them?
 
-  listenClient = await pool.connect();
+  const listenClient = await pool.connect();
   // these occur when user inserts row in `action_definition`, need to pre-process to extract the schemas
   listenClient.query("LISTEN action_definition_inserted");
   // these occur when a user inserts a row in the `action_run` table, signifying a run request
@@ -150,7 +145,7 @@ export async function setupListeners() {
 
   listenClient.on("notification", async (msg) => {
     console.info(`PG notify event: ${JSON.stringify(msg, null, 2)}`);
-    if (!msg || !msg.payload) {
+    if (!msg.payload) {
       console.warn(`warning: PG event with no message or payload: ${JSON.stringify(msg, null, 2)}`);
       return;
     }
@@ -168,7 +163,9 @@ export async function setupListeners() {
 
 export function cleanup(server: http.Server) {
   console.log("shutting down...");
-  if (listenClient) listenClient.release();
+  if (listenClient) {
+    listenClient.release();
+  }
   server.close(() => {
     console.log("server closed.");
     process.exit(0);
