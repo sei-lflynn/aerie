@@ -138,6 +138,9 @@ interface ParallelOps<T: IntervalLike<T>, THIS: ParallelOps<T, THIS>>: GeneralOp
           true
       ) { t -> t.interval.shiftBy(shiftStart, shiftEnd) }
 
+  /** [(DOC)][extend] Extends just the end of each object's interval by a duration. The duration can be negative. */
+  fun extend(shiftEnd: Duration) = shiftEndpoints(Duration.ZERO, shiftEnd)
+
   /** [(DOC)][active] Returns a [Booleans] profile that is true when this timeline has an active object. */
   fun active() = flattenIntoProfile(::Booleans) { _ -> true }.assignGaps(Booleans(false))
 
