@@ -45,12 +45,12 @@ export type ActionRunInsertedPayload = {
 export type ActionResponse =
   | {
       results: ActionResults;
-      console: ConsoleOutput;
+      console: string[];
       errors: null;
     }
   | {
       results: null;
-      console: ConsoleOutput;
+      console: string[];
       errors: {
         stack: string | undefined;
         message: string;

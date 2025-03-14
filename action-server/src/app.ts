@@ -18,7 +18,7 @@ const server = app.listen(port, async () => {
   try {
     // init the pool of workers that will execute actions
     ActionWorkerPool.setup();
-    // init the pg database listners
+    // init the pg database listeners
     await setupListeners();
   } catch (error) {
     console.error("Failed to initialize application:", error);

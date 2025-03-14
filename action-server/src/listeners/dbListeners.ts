@@ -89,17 +89,7 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
   console.log(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
   console.info(run);
 
-  let logStr = "";
-  if (run) {
-    logStr = [
-      // todo replace this with proper log stringification
-      run.console.error.join("\n"),
-      run.console.warn.join("\n"),
-      run.console.log.join("\n"),
-      run.console.info.join("\n"),
-      run.console.debug.join("\n"),
-    ].join("\n");
-  }
+  const logStr = run ? run.console.join("\n") : "";
 
   // update action_run row in DB with status/results/errors/logs
   try {

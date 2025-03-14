@@ -21,14 +21,15 @@
     "@types/express": "^5.0.0",
     "@types/pg": "^8.11.11",
     "eslint-config-sheriff": "^25.8.0",
-    "express": "^5.0.1",
     "nodemon": "^3.1.9",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2"
   },
   "dependencies": {
     "aerie-actions": "github:NASA-AMMOS/aerie-actions#34262aeb0e519aca04629bb022b083b16608f3b5",
+    "express": "^5.0.1",
     "pg": "^8.13.3",
-    "piscina": "^5.0.0-alpha.0"
+    "piscina": "^5.0.0-alpha.0",
+    "winston": "^3.17.0"
   }
 }

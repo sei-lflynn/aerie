@@ -1,28 +1,37 @@
 import * as vm from "node:vm";
-import { ActionResponse, ActionResults, ConsoleOutput } from "../type/types";
+import type { ActionResponse } from "../type/types";
 import { Actions } from "aerie-actions/dist/helpers";
 import { PoolClient } from "pg";
+import { createLogger, format, transports } from "winston";
 
-// function getConsoleHandlers(oldConsole: any) {
-//   return {
-//     ...oldConsole,
-//     log: (...args: any[]) => {
-//       consoleOutput.log.push(args.join(" "));
-//     },
-//     debug: (...args: any[]) => {
-//       consoleOutput.debug.push(args.join(" "));
-//     },
-//     info: (...args: any[]) => {
-//       consoleOutput.info.push(args.join(" "));
-//     },
-//     warn: (...args: any[]) => {
-//       consoleOutput.warn.push(args.join(" "));
-//     },
-//     error: (...args: any[]) => {
-//       consoleOutput.error.push(args.join(" "));
-//     },
-//   }
-// }
+// todo put this inside a more limited closure scope or it will get reused...
+// const logBuffer: string[] = [];
+
+function injectLogger(oldConsole: any, logBuffer: string[]) {
+  // inject a winston logger to be passed to the action VM, replacing its normal `console`,
+  // so we can capture the console outputs and return them with the action results
+  const logger = createLogger({
+    level: "debug", // todo allow user to set log level
+    format: format.combine(
+        format.timestamp(),
+        format.printf(({ level, message, timestamp }) => {
+          const logLine = `${timestamp} [${level.toUpperCase()}] ${message}`;
+          logBuffer.push(logLine);
+          return logLine;
+        })
+    ),
+    // todo log to console if log level is debug
+    transports: [new transports.Console()], // optional, for debugging
+  });
+
+  return {
+    ...oldConsole,
+    log: (...args: any[]) => logger.info(args.join(" ")),
+    info: (...args: any[]) => logger.info(args.join(" ")),
+    warn: (...args: any[]) => logger.warn(args.join(" ")),
+    error: (...args: any[]) => logger.error(args.join(" "))
+  }
+}
 
 export const jsExecute = async (
   code: string,
@@ -32,33 +41,13 @@ export const jsExecute = async (
   client: PoolClient,
   workspaceId: number,
 ): Promise<ActionResponse> => {
-  /** Array to store console output. */
-  const consoleOutput: ConsoleOutput = { log: [], debug: [], info: [], error: [], warn: [] };
-
   // create a clone of the global object (including getters/setters/non-enumerable properties)
   // to be passed to the context so it has access to eg. node built-ins
   let aerieGlobal = Object.defineProperties({ ...global }, Object.getOwnPropertyDescriptors(global));
-
-  aerieGlobal.console = {
-    ...aerieGlobal.console,
-    log: (...args: any[]) => {
-      consoleOutput.log.push(args.join(" "));
-    },
-    debug: (...args: any[]) => {
-      consoleOutput.debug.push(args.join(" "));
-    },
-    info: (...args: any[]) => {
-      consoleOutput.info.push(args.join(" "));
-    },
-    warn: (...args: any[]) => {
-      consoleOutput.warn.push(args.join(" "));
-    },
-    error: (...args: any[]) => {
-      consoleOutput.error.push(args.join(" "));
-    },
-  };
-
-  // need to initialize exports for the module to work correctly
+  // inject custom logger to capture logs from action run
+  let logBuffer: string[] = [];
+  aerieGlobal.console = injectLogger(aerieGlobal.console, logBuffer);
+  // initialize exports for the module to work correctly
   aerieGlobal.exports = {};
 
   const context = vm.createContext(aerieGlobal);
@@ -68,18 +57,23 @@ export const jsExecute = async (
     // todo: main runs outside of VM - is that OK?
     const actions = new Actions(client, workspaceId);
     const results = await context.main(parameters, settings, actions);
-    return { results, console: consoleOutput, errors: null };
-  } catch (error: any) {
+    return { results, console: logBuffer, errors: null };
+  } catch (err: any) {
     // wrap `throw 10` into a `new throw(10)`
     let errorResponse: Error;
-    if ((error !== null && typeof error !== "object") || !("message" in error && "stack" in error)) {
-      errorResponse = new Error(String(error));
+    if ((err !== null && typeof err !== "object") || !("message" in err && "stack" in err)) {
+      errorResponse = new Error(String(err));
     } else {
-      errorResponse = error;
+      errorResponse = err;
     }
+    // also push errors into run logs - useful to have them there
+    if(errorResponse.message) aerieGlobal.console.error(errorResponse.message);
+    if(errorResponse.stack) aerieGlobal.console.error(errorResponse.stack);
+    if(errorResponse.cause) aerieGlobal.console.error(errorResponse.cause);
+
     return Promise.resolve({
       results: null,
-      console: consoleOutput,
+      console: logBuffer,
       errors: {
         stack: errorResponse.stack,
         message: errorResponse.message,
