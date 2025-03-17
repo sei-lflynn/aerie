@@ -1328,11 +1328,11 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
       // TODO: all of the properties of eventJson are strings, except attributes. Including things like source_range, etc.,
       //    that should be objects...find a better way to handle this
-      final var eventAttributes = SchedulerParsers.parseJson(e.getJsonObject("attributes").toString(), new SerializedValueJsonParser()).asMap().get();
+      final var eventAttributes = SchedulerParsers.parseJson(e.getString("attributes"), new SerializedValueJsonParser()).asMap().get();
       // TODO: convert eventAttributes to a Map<String, SerializedValue>?
 
       final var sourceAttributes = SchedulerParsers
-          .parseJson(e.getJsonObject("external_source").getJsonObject("attributes").toString(), new SerializedValueJsonParser()).asMap().get();
+          .parseJson(e.getJsonObject("external_source").getString("attributes"), new SerializedValueJsonParser()).asMap().get();
 
       result.add(new ExternalEvent(
           e.getString("event_key"),
