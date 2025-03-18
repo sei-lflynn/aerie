@@ -1,6 +1,6 @@
 create table merlin.external_source_type (
     name text not null,
-    attribute_schema jsonb not null,
+    attribute_schema jsonb not null default '{}',
 
     constraint external_source_type_pkey
       primary key (name)
@@ -19,7 +19,7 @@ comment on column merlin.external_source_type.attribute_schema is e''
 
 create table merlin.external_event_type (
     name text not null,
-    attribute_schema jsonb not null,
+    attribute_schema jsonb not null default '{}',
 
     constraint external_event_type_pkey
       primary key (name)
@@ -72,7 +72,7 @@ create table merlin.external_source (
     CHECK (end_time > start_time),
     created_at timestamp with time zone default now() not null,
     owner text,
-    attributes jsonb,
+    attributes jsonb not null default '{}',
 
     constraint external_source_pkey
       primary key (key, derivation_group_name),
@@ -148,7 +148,7 @@ create table merlin.external_event (
     derivation_group_name text not null,
     start_time timestamp with time zone not null,
     duration interval not null,
-    attributes jsonb,
+    attributes jsonb not null default '{}',
 
     constraint external_event_pkey
       primary key (key, source_key, derivation_group_name, event_type_name),
@@ -292,7 +292,7 @@ create function merlin.external_source_pdg_ack_update()
   returns trigger
   language plpgsql as $$
 begin
-  update merlin.plan_derivation_group set "acknowledged" = false
+  update merlin.plan_derivation_group set acknowledged = false
   where plan_derivation_group.derivation_group_name = NEW.derivation_group_name;
   return new;
 end;
@@ -339,7 +339,8 @@ select distinct on (event_key, derivation_group_name)
     output.duration,
     output.start_time,
     output.source_range,
-    output.valid_at
+    output.valid_at,
+    output.attributes
 from (
   -- select the events from the sources and include them as they fit into the ranges determined by sub
   select
@@ -350,7 +351,8 @@ from (
     s.derivation_group_name,
     ee.start_time,
     s.source_range,
-    s.valid_at
+    s.valid_at,
+    ee.attributes
   from merlin.external_event ee
   join (
     with base_ranges as (
