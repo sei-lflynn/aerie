@@ -43,12 +43,7 @@ export const seqJsonBuilder: SeqJsonBuilder = (expandedActivities, seqId, seqMet
        */
       previousTime = ai.startTime;
       for (const command of ai.expansionResult) {
-        const currentCommand =
-          command instanceof CommandStem
-            ? (command as CommandStem)
-            : command instanceof LoadStep
-            ? (command as LoadStep)
-            : (command as ActivateStep);
+        const currentCommand = command as (CommandStem<{} | []> | LoadStep | ActivateStep);
 
         // If any command is epoch-relative or command complete, we can't sort
         if (
@@ -84,13 +79,8 @@ export const seqJsonBuilder: SeqJsonBuilder = (expandedActivities, seqId, seqMet
   if (activityInstanceCount > 0 && shouldSort) {
     timeSorted = true;
     allCommands = convertedCommands.sort((a, b) => {
-      const aStep =
-        a instanceof CommandStem ? (a as CommandStem) : a instanceof LoadStep ? (a as LoadStep) : (a as ActivateStep);
-      const bStep =
-        b instanceof CommandStem ? (b as CommandStem) : b instanceof LoadStep ? (b as LoadStep) : (b as ActivateStep);
-
-      const aAbsoluteTime = aStep.GET_ABSOLUTE_TIME();
-      const bAbsoluteTime = bStep.GET_ABSOLUTE_TIME();
+      const aAbsoluteTime = a.GET_ABSOLUTE_TIME();
+      const bAbsoluteTime = b.GET_ABSOLUTE_TIME();
 
       if (aAbsoluteTime && bAbsoluteTime) {
         return Temporal.Instant.compare(aAbsoluteTime, bAbsoluteTime);
