@@ -1,6 +1,6 @@
 import * as vm from "node:vm";
 import type { ActionResponse } from "../type/types";
-import { Actions } from "aerie-actions/dist/helpers";
+import { ActionsAPI } from "aerie-actions/dist/index";
 import { PoolClient } from "pg";
 import { createLogger, format, transports } from "winston";
 
@@ -27,6 +27,7 @@ function injectLogger(oldConsole: any, logBuffer: string[]) {
   return {
     ...oldConsole,
     log: (...args: any[]) => logger.info(args.join(" ")),
+    debug: (...args: any[]) => logger.debug(args.join(" ")),
     info: (...args: any[]) => logger.info(args.join(" ")),
     warn: (...args: any[]) => logger.warn(args.join(" ")),
     error: (...args: any[]) => logger.error(args.join(" "))
@@ -38,6 +39,7 @@ function getGlobals() {
   aerieGlobal.exports = {};
   aerieGlobal.require = require;
   aerieGlobal.__dirname = __dirname;
+  // todo: pass env variables from the parent process?
   return aerieGlobal;
 }
 
@@ -61,8 +63,8 @@ export const jsExecute = async (
   try {
     vm.runInContext(code, context);
     // todo: main runs outside of VM - is that OK?
-    const actions = new Actions(client, workspaceId);
-    const results = await context.main(parameters, settings, actions);
+    const actionsAPI = new ActionsAPI(client, workspaceId);
+    const results = await context.main(parameters, settings, actionsAPI);
     return { results, console: logBuffer, errors: null };
   } catch (err: any) {
     // wrap `throw 10` into a `new throw(10)`

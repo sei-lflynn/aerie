@@ -17,13 +17,10 @@ test("Code Runner jsRunner Tests", async () => {
     const result: ActionResponse = await jsExecute(code, {}, {}, undefined, {} as PoolClient, 1);
 
     assert(result.console[0].includes("[INFO] Hello World"));
-
-    // Check console outputs
-    // assert.strictEqual(result.console.log.join(), "Hello World");
-    // assert.strictEqual(result.console.debug.join(), "Debug message");
-    // assert.strictEqual(result.console.info.join(), "Info message");
-    // assert.strictEqual(result.console.warn.join(), "Warning message");
-    // assert.strictEqual(result.console.error.join(), "Error message");
+    assert(result.console[1].includes("[DEBUG] Debug message"));
+    assert(result.console[2].includes("[INFO] Info message"));
+    assert(result.console[3].includes("[WARN] Warning message"));
+    assert(result.console[4].includes("[ERROR] Error message"));
   });
 
   await test("run basic action", async () => {

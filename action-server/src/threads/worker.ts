@@ -3,8 +3,6 @@ import { jsExecute } from "../utils/codeRunner";
 import { ActionResponse, ActionTask } from "../type/types";
 import { ActionsDbManager } from "../db";
 
-//export async function add({n} : { n : number}) :Promise<number> { debugger;return n; }
-
 export async function runAction(task: ActionTask): Promise<ActionResponse> {
   console.log(`Worker [${threadId}] running task`);
   console.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);

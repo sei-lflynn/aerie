@@ -28,13 +28,12 @@ async function handleActionDefinition(payload: ActionDefinitionInsertedPayload) 
 
   console.info(`schemas ${JSON.stringify(schemas, null, 2)}`);
 
-  // todo: set schemas on the DB row?
   const pool = ActionsDbManager.getDb();
   const query = `
     UPDATE actions.action_definition
     SET
-      parameter_schema = parameter_schema || $1::jsonb,
-      settings_schema = settings_schema || $2::jsonb
+      parameter_schema = $1::jsonb,
+      settings_schema = $2::jsonb
     WHERE id = $3
       RETURNING *;
   `;
@@ -63,8 +62,6 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
   // const authToken = req.header("authorization");
   // if (!authToken) console.warn("No valid `authorization` header in action-run request");
 
-  // todo: run the action file, put results in the same DB row and mark status as successful
-  // todo: try/catch - need to handle errors manually since not in express handler?
   const { parameters, settings } = payload;
   const workspaceId = payload.workspace_id;
   const pool = ActionsDbManager.getDb(); // cant seralize pool as there is data that is unserializable DOMException: DataCloneError
