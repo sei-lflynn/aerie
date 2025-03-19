@@ -33,6 +33,14 @@ function injectLogger(oldConsole: any, logBuffer: string[]) {
   }
 }
 
+function getGlobals() {
+  let aerieGlobal = Object.defineProperties({ ...global }, Object.getOwnPropertyDescriptors(global));
+  aerieGlobal.exports = {};
+  aerieGlobal.require = require;
+  aerieGlobal.__dirname = __dirname;
+  return aerieGlobal;
+}
+
 export const jsExecute = async (
   code: string,
   parameters: Record<string, any>,
@@ -43,12 +51,10 @@ export const jsExecute = async (
 ): Promise<ActionResponse> => {
   // create a clone of the global object (including getters/setters/non-enumerable properties)
   // to be passed to the context so it has access to eg. node built-ins
-  let aerieGlobal = Object.defineProperties({ ...global }, Object.getOwnPropertyDescriptors(global));
+  const aerieGlobal = getGlobals();
   // inject custom logger to capture logs from action run
   let logBuffer: string[] = [];
   aerieGlobal.console = injectLogger(aerieGlobal.console, logBuffer);
-  // initialize exports for the module to work correctly
-  aerieGlobal.exports = {};
 
   const context = vm.createContext(aerieGlobal);
 
@@ -88,7 +94,8 @@ export const extractSchemas = async (code: string): Promise<any> => {
   // todo: do we need to pass globals/console for this part?
 
   // need to initialize exports for the cjs module to work correctly
-  const context = vm.createContext({ exports: {} });
+  const aerieGlobal = getGlobals();
+  const context = vm.createContext(aerieGlobal);
 
   try {
     vm.runInContext(code, context);
