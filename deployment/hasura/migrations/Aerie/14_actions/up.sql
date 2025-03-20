@@ -1,22 +1,25 @@
 create schema actions;
 
-DO $$
-  DECLARE seq_user text;
-  BEGIN
-    SELECT into seq_user grantee
-    FROM information_schema.role_table_grants
-    WHERE table_schema = 'sequencing'
-      AND table_name = 'user_sequence'
+do $$
+  declare
+    seq_user text;
+  begin
+    select grantee
+    from information_schema.role_table_grants
+    where table_schema = 'sequencing'
+      and table_name = 'user_sequence'
       and privilege_type = 'INSERT'
-      and grantee != (select current_user as usersss)
-    limit 1;
+      and grantee != (select current_user)
+    limit 1
+    into seq_user;
 
-    EXECUTE format('grant create, usage on schema actions to %I', seq_user);
-    EXECUTE format('grant select, insert, update, delete on all tables in schema actions to %I', seq_user);
-    EXECUTE format('grant execute on all routines in schema actions to %I', seq_user);
-    EXECUTE format('alter default privileges in schema actions grant select, insert, update, delete on tables to %I', seq_user);
-    EXECUTE format('alter default privileges in schema actions grant execute on routines to %I', seq_user);
-  END $$;
+    execute format('grant create, usage on schema actions to %I', seq_user);
+    execute format('grant select, insert, update, delete on all tables in schema actions to %I', seq_user);
+    execute format('grant execute on all routines in schema actions to %I', seq_user);
+    execute format('alter default privileges in schema actions grant select, insert, update, delete on tables to %I', seq_user);
+    execute format('alter default privileges in schema actions grant execute on routines to %I', seq_user);
+  end
+$$;
 
 create type actions.action_run_status as enum ('pending', 'in-progress', 'failed', 'complete');
 
