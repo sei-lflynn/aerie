@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Response } from "express";
 import { configuration } from "./config";
 import { corsMiddleware, jsonErrorMiddleware } from "./middleware";
 import { ActionWorkerPool } from "./threads/workerPool";
@@ -24,6 +24,14 @@ const server = app.listen(port, async () => {
     console.error("Failed to initialize application:", error);
     process.exit(1);
   }
+});
+
+app.get("/", async (req, res, next) => {
+  res.send("Aerie Action Service");
+});
+
+app.get("/health", async (req, res, next) => {
+  res.status(200).send();
 });
 
 // handle termination signals
