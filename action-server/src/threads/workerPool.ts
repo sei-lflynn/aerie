@@ -2,6 +2,7 @@ import { Piscina } from "piscina";
 import * as path from "node:path";
 import { ActionResponse, ActionTask } from "../type/types";
 import { configuration } from "../config";
+import logger from "../utils/logger";
 
 export class ActionWorkerPool {
   private static piscina: Piscina<any, any>;
@@ -23,7 +24,7 @@ export class ActionWorkerPool {
     try {
       return await ActionWorkerPool.piscina.run(task, { name: "runAction" });
     } catch (error) {
-      console.error("Task submission failed:", error);
+      logger.error("Task submission failed:", error);
       throw error;
     }
   }

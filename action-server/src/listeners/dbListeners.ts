@@ -7,6 +7,8 @@ import { ActionsDbManager } from "../db";
 import { ActionWorkerPool } from "../threads/workerPool";
 import type { ActionDefinitionInsertedPayload, ActionResponse, ActionRunInsertedPayload } from "../type/types";
 import { extractSchemas } from "../utils/codeRunner";
+import { createLogger, format, transports } from "winston";
+import logger from "../utils/logger";
 
 let listenClient: PoolClient | undefined;
 
@@ -14,19 +16,14 @@ async function readFileFromStore(fileName: string): Promise<string> {
   // read file from aerie file store and return [resolve] it as a string
   const fileStoreBasePath = configuration().ACTION_LOCAL_STORE;
   const filePath = path.join(fileStoreBasePath, fileName);
-  console.log(`path is ${filePath}`);
+  logger.info(`path is ${filePath}`);
   return await readFile(filePath, "utf-8");
 }
 
-async function handleActionDefinition(payload: ActionDefinitionInsertedPayload) {
-  console.log("action definition inserted");
-
+async function refreshActionDefinitionSchema(payload: ActionDefinitionInsertedPayload) {
   // read the action file and extract parameter/setting schemas
   const actionJS = await readFileFromStore(payload.action_file_path);
-  // console.debug(actionJS);
   const schemas = await extractSchemas(actionJS);
-
-  console.info(`schemas ${JSON.stringify(schemas, null, 2)}`);
 
   const pool = ActionsDbManager.getDb();
   const query = `
@@ -44,28 +41,27 @@ async function handleActionDefinition(payload: ActionDefinitionInsertedPayload) 
       JSON.stringify(schemas.settingDefs),
       payload.action_definition_id,
     ]);
-    console.log("Updated action_definition:", res.rows[0]);
+    logger.info("Updated action_definition:", res.rows[0]);
   } catch (error) {
-    console.error("Error updating row:", error);
+    logger.error("Error updating row:", error);
   }
 }
 
-async function handleActionRun(payload: ActionRunInsertedPayload) {
+async function runAction(payload: ActionRunInsertedPayload) {
   const actionRunId = payload.action_run_id;
   const actionFilePath = payload.action_file_path;
-  console.log(`action run ${actionRunId} inserted (${actionFilePath})`);
-  console.info(payload);
+  logger.info(`action run ${actionRunId} inserted (${actionFilePath})`);
   // event payload contains a file path for the action file which should be run
   const actionJS = await readFileFromStore(actionFilePath);
 
-  // TODO: how to handle auth tokens??
+  // NOTE: Authentication tokens are unavailable in PostgreSQL Listen/Notify
   // const authToken = req.header("authorization");
   // if (!authToken) console.warn("No valid `authorization` header in action-run request");
 
   const { parameters, settings } = payload;
   const workspaceId = payload.workspace_id;
-  const pool = ActionsDbManager.getDb(); // cant seralize pool as there is data that is unserializable DOMException: DataCloneError
-  console.log(`Submitting task to worker pool for action run ${actionRunId}`);
+  const pool = ActionsDbManager.getDb();
+  logger.info(`Submitting task to worker pool for action run ${actionRunId}`);
   const start = performance.now();
 
   let run, taskError;
@@ -77,14 +73,13 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
       workspaceId,
     })) satisfies ActionResponse;
   } catch (error: any) {
-    console.error("Error running task:", error);
+    logger.error("Error running task:", error);
     taskError = { message: error.message, stack: error.stack };
   }
 
   const duration = Math.round(performance.now() - start);
   const status = taskError || run?.errors ? "failed" : "complete";
-  console.log(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
-  console.info(run);
+  logger.info(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
 
   const logStr = run ? run.console.join("\n") : "";
 
@@ -111,9 +106,9 @@ async function handleActionRun(payload: ActionRunInsertedPayload) {
         payload.action_run_id,
       ],
     );
-    console.log("Updated action_run:", res.rows[0]);
+    logger.info("Updated action_run:", res.rows[0]);
   } catch (error) {
-    console.error("Error updating row:", error);
+    logger.error("Error updating row:", error);
   }
 }
 
@@ -140,12 +135,12 @@ export async function setupListeners() {
 
     if (msg.channel === "action_definition_inserted") {
       // todo should these be awaited?
-      await handleActionDefinition(payload);
+      await refreshActionDefinitionSchema(payload);
     } else if (msg.channel === "action_run_inserted") {
-      await handleActionRun(payload);
+      await runAction(payload);
     }
   });
-  console.log("Initialized PG event listeners");
+  logger.info("Initialized PG event listeners");
 }
 
 export function cleanup(server: http.Server) {
@@ -154,7 +149,7 @@ export function cleanup(server: http.Server) {
     listenClient.release();
   }
   server.close(() => {
-    console.log("server closed.");
+    logger.info("server closed.");
     process.exit(0);
   });
 }
