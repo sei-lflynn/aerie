@@ -4,7 +4,6 @@ services:
     build:
       context: ./action-server
       dockerfile: Dockerfile
-      #dockerfile: Dockerfile.dev #-- Uncomment for development
     container_name: aerie_action
     depends_on: [ "postgres" ]
     environment:
@@ -22,7 +21,6 @@ services:
       ACTION_MAX_WORKER_NUM: 8
     image: aerie_action
     ports: [ "27186:27186" ]
-    #ports: [ "27186:27186",'9229:9229'] #-- Uncomment for development
     restart: always
     volumes:
       - ./action-server:/app:cached
