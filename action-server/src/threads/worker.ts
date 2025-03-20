@@ -9,7 +9,6 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
   logger.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);
   logger.info(`Settings: ${JSON.stringify(task.parameters, null, 2)}`);
 
-  // console.debug(task);
   ActionsDbManager.init();
   const pool = ActionsDbManager.getDb();
   pool.on("error", (err) => {
