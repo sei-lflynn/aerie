@@ -6,21 +6,22 @@ import { ActionResponse } from "../src/type/types";
 
 test("Code Runner jsRunner Tests", async () => {
   await test("capture console output", async () => {
-    const code = `
-    console.log('Hello World');
-    console.debug('Debug message');
-    console.info('Info message');
-    console.warn('Warning message');
-    console.error('Error message');
+    const code = `function main(actionParameters, actionSettings, ActionAPI) {
+      console.log('Hello World');
+      console.debug('Debug message');
+      console.info('Info message');
+      console.warn('Warning message');
+      console.error('Error message');
+    }
   `;
 
     const result: ActionResponse = await jsExecute(code, {}, {}, undefined, {} as PoolClient, 1);
-
-    assert(result.console[0].includes("[INFO] Hello World"));
-    assert(result.console[1].includes("[DEBUG] Debug message"));
-    assert(result.console[2].includes("[INFO] Info message"));
-    assert(result.console[3].includes("[WARN] Warning message"));
-    assert(result.console[4].includes("[ERROR] Error message"));
+    assert.strictEqual(result.console.length, 5);
+    assert.ok(result.console[0].includes("[INFO] Hello World"));
+    assert.ok(result.console[1].includes("[DEBUG] Debug message"));
+    assert.ok(result.console[2].includes("[INFO] Info message"));
+    assert.ok(result.console[3].includes("[WARN] Warning message"));
+    assert.ok(result.console[4].includes("[ERROR] Error message"));
   });
 
   await test("run basic action", async () => {
