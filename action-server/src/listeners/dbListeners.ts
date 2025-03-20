@@ -37,8 +37,8 @@ async function refreshActionDefinitionSchema(payload: ActionDefinitionInsertedPa
 
   try {
     const res = await pool.query(query, [
-      JSON.stringify(schemas.paramDefs),
-      JSON.stringify(schemas.settingDefs),
+      JSON.stringify(schemas.parameterDefinitions),
+      JSON.stringify(schemas.settingDefinitions),
       payload.action_definition_id,
     ]);
     logger.info("Updated action_definition:", res.rows[0]);

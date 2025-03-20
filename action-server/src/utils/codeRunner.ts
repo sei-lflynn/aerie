@@ -101,8 +101,8 @@ export const extractSchemas = async (code: string): Promise<any> => {
 
   try {
     vm.runInContext(code, context);
-    const { paramDefs, settingDefs } = context.exports;
-    return { paramDefs, settingDefs };
+    const { parameterDefinitions, settingDefinitions } = context.exports;
+    return { parameterDefinitions, settingDefinitions };
   } catch (error: any) {
     // wrap `throw 10` into a `new throw(10)`
     let errorResponse: Error;
