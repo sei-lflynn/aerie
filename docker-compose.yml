@@ -18,8 +18,8 @@ services:
       ACTION_DB_USER: "${SEQUENCING_USERNAME}"
       ACTION_DB_PASSWORD: "${SEQUENCING_PASSWORD}"
       ACTION_LOCAL_STORE: /usr/src/app/action_file_store
-      ACTION_WORKER_NUM: 8
-      ACTION_MAX_WORKER_NUM: 8
+      ACTION_WORKER_NUM: 1
+      ACTION_MAX_WORKER_NUM: 1
     image: aerie_action
     ports: [ "27186:27186" ]
     #ports: [ "27186:27186",'9229:9229'] #-- Uncomment for development
