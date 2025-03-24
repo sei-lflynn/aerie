@@ -4,22 +4,22 @@ create table actions.action_run (
   settings jsonb not null,
   parameters jsonb not null,
   logs text,
-  error jsonb,
-  results jsonb,
+  error jsonb not null default '{}'::jsonb,
+  results jsonb not null default '{}'::jsonb,
   status actions.action_run_status not null default 'pending',
 
   action_definition_id integer not null,
 
-  created_by text,
-  created_at timestamptz not null default now(),
+  requested_by text,
+  requested_at timestamptz not null default now(),
   duration integer,
 
   constraint action_run_synthetic_key
     primary key (id),
   foreign key (action_definition_id)
     references actions.action_definition (id)
-    on delete set null,
-  foreign key (created_by)
+    on delete cascade,
+  foreign key (requested_by)
     references permissions.users
     on update cascade
     on delete set null
@@ -27,6 +27,8 @@ create table actions.action_run (
 
 comment on table actions.action_run is e''
   'The record of a single run of an action.';
+comment on column actions.action_run.id is e''
+  'The ID of the action run.';
 comment on column actions.action_run.settings is e''
   'The supplied settings for the run of the action.';
 comment on column actions.action_run.parameters is e''
@@ -39,10 +41,14 @@ comment on column actions.action_run.results is e''
   'The results produced by the action run.';
 comment on column actions.action_run.status is e''
   'The status of the action run.';
-comment on column actions.action_run.duration is e''
-  'The duration of the action run, if it has completed; null otherwise';
 comment on column actions.action_run.action_definition_id is e''
   'The ID of the definition of the action.';
+comment on column actions.action_run.requested_by is e''
+  'The username of the requester of the action run.';
+comment on column actions.action_run.requested_at is e''
+  'The time that the run was requested at.';
+comment on column actions.action_run.duration is e''
+  'The duration of the action run, if it has completed; null otherwise';
 
 create function actions.notify_action_run_inserted()
   returns trigger

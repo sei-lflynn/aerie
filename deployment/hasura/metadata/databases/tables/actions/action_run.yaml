@@ -29,13 +29,13 @@ insert_permissions:
       columns: [settings, parameters, action_definition_id]
       check: {}
       set:
-        created_by: "x-hasura-user-id"
+        requested_by: "x-hasura-user-id"
   - role: user
     permission:
       columns: [settings, parameters, action_definition_id]
       check: {}
       set:
-        created_by: "x-hasura-user-id"
+        requested_by: "x-hasura-user-id"
 update_permissions:
   - role: aerie_admin
     permission:

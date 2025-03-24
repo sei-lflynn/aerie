@@ -29,7 +29,7 @@ select_permissions:
 insert_permissions:
   - role: aerie_admin
     permission:
-      columns: "*"
+      columns: [name, description, action_file_id, workspace_id]
       check: {}
       set:
         owner: "x-hasura-user-id"

@@ -5,7 +5,7 @@ create table actions.action_definition (
   description text null,
   parameter_schema jsonb not null default '{}'::jsonb,
   settings_schema jsonb not null default '{}'::jsonb,
-  settings jsonb not null,
+  settings jsonb not null default '{}'::jsonb,
 
   action_file_id integer not null,
   workspace_id integer not null,
@@ -20,7 +20,7 @@ create table actions.action_definition (
 
   foreign key (workspace_id)
     references sequencing.workspace (id)
-    on delete set null,
+    on delete cascade,
   foreign key (owner)
     references permissions.users
     on update cascade
@@ -38,6 +38,8 @@ create table actions.action_definition (
 
 comment on table actions.action_definition is e''
   'User provided Javascript code that will be invoked by Aerie actions and ran on an Aerie server.';
+comment on column actions.action_definition.id is e''
+  'The ID of the action.';
 comment on column actions.action_definition.name is e''
   'The name of the action.';
 comment on column actions.action_definition.description is e''
@@ -52,6 +54,14 @@ comment on column actions.action_definition.action_file_id is e''
   'The ID of the uploaded action file.';
 comment on column actions.action_definition.workspace_id is e''
   'The ID of the workspace the action is part of.';
+comment on column actions.action_definition.created_at is e''
+  'When the action definition was created.';
+comment on column actions.action_definition.owner is e''
+  'The owner of the action definition.';
+comment on column actions.action_definition.updated_at is e''
+  'The last time the action definition was updated.';
+comment on column actions.action_definition.updated_by is e''
+  'The user who last updated the action definition.';
 
 create trigger set_timestamp
   before update on actions.action_definition
