@@ -39,7 +39,7 @@ update_permissions:
       filter: {}
   - role: user
     permission:
-      columns: [name, template_definition, language]
+      columns: [name, model_id, parcel_id, template_definition, activity_type, language, owner]
       filter: {"owner":{"_eq":"x-hasura-user-id"}}
 delete_permissions:
   - role: aerie_admin
