@@ -31,7 +31,7 @@ export const configuration = (): Config => {
     LOG_FILE: env.LOG_FILE ?? "console",
     LOG_LEVEL: env.LOG_LEVEL ?? "debug",
     MERLIN_GRAPHQL_URL: env.MERLIN_GRAPHQL_URL ?? "http://localhost:8080/graphql",
-    PORT: env.PORT ?? "27186",
+    PORT: "27186",
     STORAGE: env.STORAGE ?? "local",
   };
 };

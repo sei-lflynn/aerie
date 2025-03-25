@@ -40,8 +40,6 @@ spec:
               value: postgres
             - name: ACTION_LOCAL_STORE
               value: /usr/src/app/action_file_store
-            - name: ACTION_SERVER_PORT
-              value: "27186"
             - name: ACTION_DB_USER
               valueFrom:
                 secretKeyRef:

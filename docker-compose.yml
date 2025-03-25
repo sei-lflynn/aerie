@@ -12,7 +12,6 @@ services:
       LOG_FILE: console
       LOG_LEVEL: debug
       MERLIN_GRAPHQL_URL: http://hasura:8080/v1/graphql
-      PORT: 27186
       AERIE_DB_HOST: postgres
       AERIE_DB_PORT: 5432
       ACTION_DB_USER: "${SEQUENCING_USERNAME}"
