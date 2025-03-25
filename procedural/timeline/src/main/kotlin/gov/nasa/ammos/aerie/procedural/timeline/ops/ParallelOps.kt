@@ -22,6 +22,11 @@ import gov.nasa.ammos.aerie.procedural.timeline.util.duration.rangeTo
 interface ParallelOps<T: IntervalLike<T>, THIS: ParallelOps<T, THIS>>: GeneralOps<T, THIS>, CoalesceNoOp<T, THIS> {
 
   override fun isAlwaysSorted() = false
+  
+  /**
+   * Returns just the intervals from the timeline, without coalescing.
+   */
+  fun collectIntervals() = collect().map { it.interval }
 
   /** [(DOC)][highlightAll] Highlights all objects in the timeline in a new [Windows] timeline. */
   fun highlightAll() = unsafeMap(::Windows, BoundsTransformer.IDENTITY, true) { it.interval }
