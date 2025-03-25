@@ -55,5 +55,5 @@ export type ActionResponse =
         stack: string | undefined;
         message: string;
         cause: unknown;
-      }; // TODO: should this be an error array
+      };
     };

@@ -78,7 +78,7 @@ async function runAction(payload: ActionRunInsertedPayload) {
   }
 
   const duration = Math.round(performance.now() - start);
-  const status = taskError || run?.errors ? "failed" : "complete";
+  const status = taskError || run?.errors ? "failed" : "success";
   logger.info(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
 
   const logStr = run ? run.console.join("\n") : "";
@@ -134,7 +134,6 @@ export async function setupListeners() {
     const payload = JSON.parse(msg.payload);
 
     if (msg.channel === "action_definition_inserted") {
-      // todo should these be awaited?
       await refreshActionDefinitionSchema(payload);
     } else if (msg.channel === "action_run_inserted") {
       await runAction(payload);
