@@ -6,7 +6,7 @@ create table actions.action_run (
   logs text,
   error jsonb not null default '{}'::jsonb,
   results jsonb not null default '{}'::jsonb,
-  status actions.action_run_status not null default 'pending',
+  status util_functions.request_status not null default 'pending',
 
   action_definition_id integer not null,
 

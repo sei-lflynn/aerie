@@ -6,9 +6,6 @@
     - Views must be loaded after all their dependent tables and functions
  */
 begin;
-  -- Domain Types
-  \ir types/actions/action-types.sql
-
   -- Tables
   \ir tables/actions/action_definition.sql
   \ir tables/actions/action_run.sql
