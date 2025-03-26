@@ -10,4 +10,4 @@ drop table actions.action_definition;
 
 drop schema actions;
 
-call migrations.mark_migration_rolled_back('14');
+call migrations.mark_migration_rolled_back('15');
