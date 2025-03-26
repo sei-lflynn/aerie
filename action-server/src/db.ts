@@ -11,7 +11,7 @@ export class ActionsDbManager {
   static getDb(): Pool {
     // singleton DB pool, shared by the process
     // saved as a static to prevent accidental re-initialization
-    if(ActionsDbManager.pool) return ActionsDbManager.pool;
+    if (ActionsDbManager.pool) return ActionsDbManager.pool;
 
     try {
       logger.info(`Creating PG pool`);
@@ -21,10 +21,11 @@ export class ActionsDbManager {
         database: AERIE_DB,
         user: ACTION_DB_USER,
         password: ACTION_DB_PASSWORD,
-        min: 5
+        max: 3,
+        min: 3,
       });
       return ActionsDbManager.pool;
-    } catch(error) {
+    } catch (error) {
       logger.error(error);
       throw error;
     }
