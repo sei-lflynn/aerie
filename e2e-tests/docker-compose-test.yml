@@ -92,6 +92,7 @@ services:
       SEQUENCING_DB_USER: "${SEQUENCING_USERNAME}"
       SEQUENCING_DB_PASSWORD: "${SEQUENCING_PASSWORD}"
       SEQUENCING_LOCAL_STORE: /usr/src/app/sequencing_file_store
+      SEQUENCING_LANGUAGE: "SEQN"
     image: aerie_sequencing
     ports: ['27184:27184']
     restart: always
