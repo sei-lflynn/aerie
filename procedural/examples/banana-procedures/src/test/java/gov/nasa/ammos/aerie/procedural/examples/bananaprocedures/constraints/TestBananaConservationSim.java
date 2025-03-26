@@ -27,6 +27,15 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 
+/**
+ * Example test for procedural constraints, using real simulation.
+ * General workflow:
+ * 1. Create a {@link SimulationUtility} instance.
+ * 2. Load the mission model using the sim utility.
+ * 3. Create a new empty plan. You'll need to use a couple adapters, see {@link TestBananaConservationSim.beforeEach}.
+ *    for an example.
+ * 4. Add activities and simulate using the {@link EditablePlan} interface.
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestBananaConservationSim {
   private MissionModel<?> model;

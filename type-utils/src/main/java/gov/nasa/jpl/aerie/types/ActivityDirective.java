@@ -4,7 +4,6 @@ import gov.nasa.jpl.aerie.merlin.protocol.types.Duration;
 import gov.nasa.jpl.aerie.merlin.protocol.types.SerializedValue;
 
 import java.util.Map;
-import java.util.Objects;
 
 public record ActivityDirective(
     Duration startOffset,

@@ -92,8 +92,5 @@ private static String getMainClassFromGeneratedFile(File file) {
 }
 
 test {
-  testLogging {
-    showStandardStreams = true
-  }
   useJUnitPlatform()
 }

@@ -22,6 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Example class for testing constraints with stubbed simulation results.
+ * 1. Start with {@link StubPlan} and {@link StubSimulationResults}. These classes
+ *    throw exceptions on all methods.
+ * 2. Override the methods that you need to provide specific results. You'll need to
+ *    manually create timelines for instances and/or resource profiles.
+ */
 public class TestBananaConservationStub {
   private StubSimulationResults makeSimResults(Map<Duration,Integer> picks, Map<Duration, Double> bites) {
     return new StubSimulationResults() {
