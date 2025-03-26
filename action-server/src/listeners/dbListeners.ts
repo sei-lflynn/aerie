@@ -114,12 +114,12 @@ async function runAction(payload: ActionRunInsertedPayload) {
 
 export async function setupListeners() {
   // initialize a database connection pool
-  ActionsDbManager.init();
   const pool = ActionsDbManager.getDb();
 
   // todo: check for definitions/runs that may have been inserted while action-server was down (ie. missed notifs) & process them?
 
-  const listenClient = await pool.connect();
+  // save listenClient as a global so we can close it on cleanup if necessary
+  listenClient = await pool.connect();
   // these occur when user inserts row in `action_definition`, need to pre-process to extract the schemas
   listenClient.query("LISTEN action_definition_inserted");
   // these occur when a user inserts a row in the `action_run` table, signifying a run request
