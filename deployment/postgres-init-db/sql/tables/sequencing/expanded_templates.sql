@@ -23,3 +23,17 @@ create table sequencing.expanded_templates (
 
 comment on table sequencing.expanded_templates is e''
   'A cache of sequences that have already been expanded.';
+
+comment on column sequencing.expanded_templates.id is e''
+  'The integer-generated unique id for an expanded template.';
+comment on column sequencing.expanded_templates.seq_id is e''
+  'The id of the sequence that this expansion correlates with.\n'
+  'That sequence is what correlates this template with the activities it expands.';
+comment on column sequencing.expanded_templates.simulation_dataset_id is e''
+  'The id of the simulation that this expansion correlates with.\n'
+  'This id tells us for what exact simulation run of a given plan (and therefore for what\n'
+  'simulated activity entries) this expansion covers.';
+comment on column sequencing.expanded_templates.expanded_template is e''
+  'The content of the expanded template.';
+comment on column sequencing.expanded_templates.created_at is e''
+  'A temporal identifier that indicates when exactly this sequence was expanded.';
