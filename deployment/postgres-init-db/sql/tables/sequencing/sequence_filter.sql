@@ -4,10 +4,9 @@ create table sequencing.sequence_filter (
   model_id integer not null,
   name text,
 
-  constraint sequence_filter_primary_key
-  primary key (id),
+  constraint sequence_filter_primary_key primary key (id),
 
-  foreign key (model_id)
+  constraint seq_filter_mission_model_exists foreign key (model_id)
     references merlin.mission_model
     on update cascade
     on delete cascade

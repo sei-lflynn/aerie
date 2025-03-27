@@ -16,9 +16,9 @@ create table sequencing.expanded_templates (
       on delete cascade,
 
   constraint expanded_template_to_sequence
-      foreign key (seq_id, simulation_dataset_id)
-        references sequencing.sequence
-        on delete cascade
+    foreign key (seq_id, simulation_dataset_id)
+      references sequencing.sequence
+      on delete cascade
 );
 
 comment on table sequencing.expanded_templates is e''
