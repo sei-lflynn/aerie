@@ -1,4 +1,4 @@
-package gov.nasa.ammos.aerie.procedural.constraints;
+package gov.nasa.ammos.aerie.procedural.utils;
 
 import gov.nasa.ammos.aerie.procedural.timeline.Interval;
 import gov.nasa.ammos.aerie.procedural.timeline.collections.Directives;
@@ -17,7 +17,13 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 
-public class NotImplementedPlan implements Plan {
+/**
+ * A stub of the {@link Plan} interface that throws an exception
+ * on all methods. Used for testing by overriding methods with
+ * hard-coded outputs. You only need to implement the methods
+ * you intend to call.
+ */
+public class StubPlan implements Plan {
   @NotNull
   @Override
   public Interval totalBounds() {

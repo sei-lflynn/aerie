@@ -13,6 +13,8 @@ import gov.nasa.ammos.aerie.procedural.scheduling.ProcedureMapper;
 import gov.nasa.ammos.aerie.procedural.scheduling.annotations.SchedulingProcedure;
 import gov.nasa.ammos.aerie.procedural.scheduling.annotations.WithMappers;
 
+import gov.nasa.ammos.aerie.procedural.constraints.annotations.ConstraintProcedure;
+
 import javax.annotation.processing.Completion;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
@@ -42,8 +44,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public final class SchedulingProcedureProcessor implements Processor {
+public final class ProcedureProcessor implements Processor {
   // Effectively final, late-initialized
   private Messager messager = null;
   private Filer filer = null;
@@ -58,7 +62,11 @@ public final class SchedulingProcedureProcessor implements Processor {
   /** Elements marked by these annotations will be treated as processing roots. */
   @Override
   public Set<String> getSupportedAnnotationTypes() {
-    return Set.of(SchedulingProcedure.class.getCanonicalName(), WithMappers.class.getCanonicalName());
+    return Set.of(
+        SchedulingProcedure.class.getCanonicalName(),
+        ConstraintProcedure.class.getCanonicalName(),
+        WithMappers.class.getCanonicalName()
+    );
   }
 
   @Override
@@ -104,26 +112,32 @@ public final class SchedulingProcedureProcessor implements Processor {
       typeRules.addAll(parseValueMappers(factory));
     }
 
-    final var procedures = roundEnv.getElementsAnnotatedWith(SchedulingProcedure.class);
+    final var schedulingProcedures = roundEnv.getElementsAnnotatedWith(SchedulingProcedure.class);
+    final var constraintProcedures = roundEnv.getElementsAnnotatedWith(ConstraintProcedure.class);
 
     final var generatedClassName = ClassName.get(packageElement.getQualifiedName() + ".generated", "AutoValueMappers");
-    for (final var procedure : procedures) {
+    for (final var procedure : schedulingProcedures) {
+      final var procedureElement = (TypeElement) procedure;
+      typeRules.add(AutoValueMappers.recordTypeRule(procedureElement, generatedClassName));
+    }
+
+    for (final var procedure : constraintProcedures) {
       final var procedureElement = (TypeElement) procedure;
       typeRules.add(AutoValueMappers.recordTypeRule(procedureElement, generatedClassName));
     }
 
     final var generatedFiles = new ArrayList<JavaFile>();
 
-    generatedFiles.add(AutoValueMappers.generateAutoValueMappers(generatedClassName, procedures, List.of()));
+    final var allProcedures = Stream.concat(schedulingProcedures.stream(),constraintProcedures.stream()).collect(Collectors.toSet());
+
+    generatedFiles.add(AutoValueMappers.generateAutoValueMappers(generatedClassName, allProcedures, List.of()));
 
     // For each procedure, generate a file that implements Procedure, Supplier<ValueMapper>
-    for (final var procedure : procedures) {
+    for (final var procedure : schedulingProcedures) {
       final TypeName procedureType = TypeName.get(procedure.asType());
-      final ParameterizedTypeName valueMapperType = ParameterizedTypeName.get(
-          ClassName.get(ValueMapper.class),
-          procedureType);
 
-      final var valueMapperCode = new Resolver(typeUtils, elementUtils, typeRules).applyRules(new TypePattern.ClassPattern(ClassName.get(ValueMapper.class), List.of(new TypePattern.ClassPattern((ClassName) procedureType, List.of()))));
+      final var valueMapperCode = new Resolver(typeUtils, elementUtils, typeRules)
+          .applyRules(new TypePattern.ClassPattern(ClassName.get(ValueMapper.class), List.of(new TypePattern.ClassPattern((ClassName) procedureType, List.of()))));
       if (valueMapperCode.isEmpty()) throw new Error("Could not generate a valuemapper for procedure " + procedure.getSimpleName());
 
 
@@ -158,6 +172,52 @@ public final class SchedulingProcedureProcessor implements Processor {
               .build())
           .skipJavaLangImports(true)
           .build());
+    }
+
+    // For each procedure, generate a file that implements Procedure, Supplier<ValueMapper>
+    for (final var procedure : constraintProcedures) {
+      final TypeName procedureType = TypeName.get(procedure.asType());
+
+      this.messager.printMessage(
+          Diagnostic.Kind.NOTE,
+          "Looking at: " + procedure.toString());
+
+      final var valueMapperCode = new Resolver(typeUtils, elementUtils, typeRules)
+          .applyRules(new TypePattern.ClassPattern(ClassName.get(ValueMapper.class), List.of(new TypePattern.ClassPattern((ClassName) procedureType, List.of()))));
+      if (valueMapperCode.isEmpty()) throw new Error("Could not generate a valuemapper for procedure " + procedure.getSimpleName());
+
+
+      generatedFiles.add(JavaFile
+                             .builder(generatedClassName.packageName() + ".procedures", TypeSpec
+                                 .classBuilder(procedure.getSimpleName().toString())
+                                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                                 .addSuperinterface(ParameterizedTypeName.get(ClassName.get(gov.nasa.ammos.aerie.procedural.constraints.ProcedureMapper.class), procedureType))
+                                 .addMethod(MethodSpec
+                                                .methodBuilder("valueSchema")
+                                                .addModifiers(Modifier.PUBLIC)
+                                                .addAnnotation(Override.class)
+                                                .returns(ValueSchema.class)
+                                                .addStatement("return $L.getValueSchema()", valueMapperCode.get())
+                                                .build())
+                                 .addMethod(MethodSpec
+                                                .methodBuilder("serialize")
+                                                .addModifiers(Modifier.PUBLIC)
+                                                .addAnnotation(Override.class)
+                                                .addParameter(procedureType, "procedure")
+                                                .returns(SerializedValue.class)
+                                                .addStatement("return $L.serializeValue(procedure)", valueMapperCode.get())
+                                                .build())
+                                 .addMethod(MethodSpec
+                                                .methodBuilder("deserialize")
+                                                .addModifiers(Modifier.PUBLIC)
+                                                .addAnnotation(Override.class)
+                                                .addParameter(SerializedValue.class, "value")
+                                                .returns(procedureType)
+                                                .addStatement("return $L.deserializeValue(value).getSuccessOrThrow(e -> new $T(e))", valueMapperCode.get(), RuntimeException.class)
+                                                .build())
+                                 .build())
+                             .skipJavaLangImports(true)
+                             .build());
     }
 
     for (final var generatedFile : generatedFiles) {
