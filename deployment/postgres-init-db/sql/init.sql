@@ -48,4 +48,7 @@ begin;
 
   -- Initialize DB User permissions
   \ir init_db_users.sql
+
+  -- Actions
+  \ir init_actions.sql
 end;
