@@ -66,9 +66,11 @@ import static gov.nasa.jpl.aerie.merlin.server.http.MerlinParsers.parseJson;
     """;
 
   private final PreparedStatement statement;
+  private final Path jarFilePath;
 
-  public GetPlanConstraintsAction(final Connection connection) throws SQLException {
+  public GetPlanConstraintsAction(final Connection connection, Path jarFilePath) throws SQLException {
     this.statement = connection.prepareStatement(sql);
+    this.jarFilePath = jarFilePath;
   }
 
   public Optional<List<ConstraintRecord>> get(final long planId) throws SQLException {
@@ -85,7 +87,7 @@ import static gov.nasa.jpl.aerie.merlin.server.http.MerlinParsers.parseJson;
         final ConstraintType type;
         switch (typeString) {
           case "EDSL" -> type = new ConstraintType.EDSL(results.getString("definition"));
-          case "JAR" -> type = new ConstraintType.JAR(Path.of("/usr/src/app/merlin_file_store", results.getString("path")));
+          case "JAR" -> type = new ConstraintType.JAR(Path.of(jarFilePath.toString(), results.getString("path")));
           case null, default -> throw new IllegalArgumentException("Type `%s` is not a valid type of Aerie Constraint"
                                                                        .formatted(typeString));
         }

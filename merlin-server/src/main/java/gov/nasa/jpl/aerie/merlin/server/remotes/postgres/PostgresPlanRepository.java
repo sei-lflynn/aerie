@@ -19,6 +19,7 @@ import gov.nasa.jpl.aerie.types.Timestamp;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.sql.DataSource;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -30,9 +31,11 @@ import java.util.stream.Collectors;
 
 public final class PostgresPlanRepository implements PlanRepository {
   private final DataSource dataSource;
+  private final Path rootFilePath;
 
-  public PostgresPlanRepository(final DataSource dataSource) {
+  public PostgresPlanRepository(final DataSource dataSource, final Path rootFilePath) {
     this.dataSource = dataSource;
+    this.rootFilePath = rootFilePath;
   }
 
   // GetAllPlans is exclusively used in tests currently and none of its usages are for simulation
@@ -182,7 +185,7 @@ public final class PostgresPlanRepository implements PlanRepository {
   @Override
   public List<ConstraintRecord> getPlanConstraints(final PlanId planId) throws NoSuchPlanException {
     try (final var connection = this.dataSource.getConnection()) {
-      try (final var getPlanConstraintsAction = new GetPlanConstraintsAction(connection)) {
+      try (final var getPlanConstraintsAction = new GetPlanConstraintsAction(connection, rootFilePath)) {
         return getPlanConstraintsAction
             .get(planId.id())
             .orElseThrow(() -> new NoSuchPlanException(planId));
