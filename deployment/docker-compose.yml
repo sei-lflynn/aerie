@@ -1,9 +1,6 @@
 version: "3.7"
 services:
   aerie_action:
-    build:
-      context: ./action-server
-      dockerfile: Dockerfile
     container_name: aerie_action
     depends_on: [ "postgres" ]
     environment:
