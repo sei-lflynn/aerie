@@ -232,12 +232,12 @@ export const simulatedActivityInstanceBySeqIdBatchLoader: BatchLoader<
             }
           }
           sequence_to_simulated_activity(where: {_and: [{simulation_dataset_id: {_eq: $simulationDatasetId}},  {seq_id: {_eq: $seqId}}]}) {
-            spans {
-              span_id
+            spans: simulated_activity {
+              span_id: id
               attributes
               start_offset
               duration
-              activity_type_name: type
+              activity_type_name
             }
           }
         }
