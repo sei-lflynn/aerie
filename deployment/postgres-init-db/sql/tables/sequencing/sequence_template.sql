@@ -5,15 +5,11 @@ create table sequencing.sequence_template (
   model_id integer null,
   parcel_id integer null,
   template_definition text not null,
-  activity_type text null,
+  activity_type text not null,
   language text not null,
   owner text,
 
   constraint sequence_template_pkey primary key (id),
-  constraint activity_type foreign key (activity_type, model_id)
-    references merlin.activity_type (name, model_id)
-    on update cascade
-    on delete set null,
   constraint seq_template_mission_model_exists foreign key (model_id)
     references merlin.mission_model (id)
     on update cascade
