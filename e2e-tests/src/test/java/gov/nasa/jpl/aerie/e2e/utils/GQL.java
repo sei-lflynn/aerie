@@ -48,30 +48,34 @@ public enum GQL {
   CHECK_CONSTRAINTS("""
     query checkConstraints($planId: Int!, $simulationDatasetId: Int) {
       constraintViolations(planId: $planId, simulationDatasetId: $simulationDatasetId) {
-        success
-        constraintId
-        constraintRevision
-        constraintName
-        results {
-          resourceIds
-          gaps {
-            end
-            start
-          }
-          violations {
-            activityInstanceIds
-            windows {
+        requestId
+        constraintsRun {
+          success
+          constraintInvocationId
+          constraintId
+          constraintRevision
+          constraintName
+          results {
+            resourceIds
+            gaps {
               end
               start
             }
+            violations {
+              activityInstanceIds
+              windows {
+                end
+                start
+              }
+            }
           }
-        }
-        errors {
-          message
-          stack
-          location {
-            column
-            line
+          errors {
+            message
+            stack
+            location {
+              column
+              line
+            }
           }
         }
       }
@@ -283,15 +287,24 @@ public enum GQL {
         computed_attributes_value_schema
       }
     }"""),
-  GET_CONSTRAINT_RUNS("""
-    query getConstraintRuns($simulationDatasetId: Int!) {
-      constraint_run(where: {simulation_dataset_id: {_eq: $simulationDatasetId}}) {
-        constraint_id
-        constraint_revision
+  GET_CONSTRAINT_REQUEST("""
+    query getConstraintRequest($request_id: Int!) {
+      constraint_request: constraint_request_by_pk(id: $request_id) {
+        id
+        plan_id
         simulation_dataset_id
-        results
-        constraint_definition {
-          definition
+        constraints_run {
+          constraint_invocation_id
+          order
+          results {
+            id
+            constraint_id
+            constraint_revision
+            simulation_dataset_id
+            arguments
+            results
+            errors
+          }
         }
       }
     }"""),
@@ -583,6 +596,7 @@ public enum GQL {
     mutation insertConstraintAssignToPlanSpec($constraint: constraint_specification_insert_input!) {
       constraint: insert_constraint_specification_one(object: $constraint){
         constraint_id
+        invocation_id
       }
     }"""),
   INSERT_PROFILE("""
@@ -657,9 +671,9 @@ public enum GQL {
       }
     }"""),
   UPDATE_CONSTRAINT_SPEC_VERSION("""
-      mutation updateConstraintSpecVersion($plan_id: Int!, $constraint_id: Int!, $constraint_revision: Int!) {
+      mutation updateConstraintSpecVersion($invocation_id: Int!, $constraint_revision: Int!) {
         update_constraint_specification_by_pk(
-          pk_columns: {constraint_id: $constraint_id, plan_id: $plan_id},
+          pk_columns: {invocation_id: $invocation_id},
           _set: {constraint_revision: $constraint_revision}
         ) {
           plan_id
@@ -669,13 +683,14 @@ public enum GQL {
         }
       }"""),
   UPDATE_CONSTRAINT_SPEC_ENABLED("""
-      mutation updateConstraintSpecVersion($plan_id: Int!, $constraint_id: Int!, $enabled: Boolean!) {
+      mutation updateConstraintSpecVersion($invocation_id: Int!, $enabled: Boolean!) {
         update_constraint_specification_by_pk(
-          pk_columns: {constraint_id: $constraint_id, plan_id: $plan_id},
+          pk_columns: {invocation_id: $invocation_id},
           _set: {enabled: $enabled}
         ) {
           plan_id
           constraint_id
+          invocation_id
           constraint_revision
           enabled
         }
