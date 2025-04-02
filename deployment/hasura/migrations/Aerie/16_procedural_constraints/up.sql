@@ -120,6 +120,12 @@ end;
 $$;
 
 -- Fix existing specifications that have escaped boundaries
+
+-- Temporary disable the on-update trigger.
+-- This statement is going to impact every row in the table and set it to a collision-free value,
+-- so we do not need the trigger to go in and change any priorities
+-- (and in fact, letting the trigger run will cause issues, due to it trying to alter the priority of rows whose priorities are already being altered)
+alter table scheduler.scheduling_model_specification_goals disable trigger update_scheduling_model_specification_goal;
 with priorities as (
   select
     goal_invocation_id,
@@ -131,7 +137,11 @@ update scheduler.scheduling_model_specification_goals smg
 set priority = p.new_prio - 1 -- -1, as priority starts at 0
 from priorities p
 where p.goal_invocation_id = smg.goal_invocation_id;
+-- Reenable trigger
+alter table scheduler.scheduling_model_specification_goals enable trigger update_scheduling_model_specification_goal;
 
+-- Temporarily disable update trigger
+alter table scheduler.scheduling_specification_goals disable trigger update_scheduling_specification_goal;
 with priorities as (
   select
     goal_invocation_id,
@@ -143,6 +153,8 @@ update scheduler.scheduling_specification_goals ssg
 set priority = p.new_prio - 1 -- -1, as priority starts at 0
 from priorities p
 where p.goal_invocation_id = ssg.goal_invocation_id;
+-- Reenable trigger
+alter table scheduler.scheduling_specification_goals enable trigger update_scheduling_specification_goal;
 
 /*************
   Constraints
