@@ -125,7 +125,7 @@ $$;
 -- This statement is going to impact every row in the table and set it to a collision-free value,
 -- so we do not need the trigger to go in and change any priorities
 -- (and in fact, letting the trigger run will cause issues, due to it trying to alter the priority of rows whose priorities are already being altered)
-alter table scheduler.scheduling_model_specification_goals disable trigger update_scheduling_model_specification_goal;
+drop trigger update_scheduling_model_specification_goal on scheduler.scheduling_model_specification_goals;
 with priorities as (
   select
     goal_invocation_id,
@@ -138,10 +138,14 @@ set priority = p.new_prio - 1 -- -1, as priority starts at 0
 from priorities p
 where p.goal_invocation_id = smg.goal_invocation_id;
 -- Reenable trigger
-alter table scheduler.scheduling_model_specification_goals enable trigger update_scheduling_model_specification_goal;
+create trigger update_scheduling_model_specification_goal
+  before update on scheduler.scheduling_model_specification_goals
+  for each row
+  when (OLD.priority is distinct from NEW.priority and pg_trigger_depth() < 1)
+execute function scheduler.update_scheduling_model_specification_goal_func();
 
 -- Temporarily disable update trigger
-alter table scheduler.scheduling_specification_goals disable trigger update_scheduling_specification_goal;
+drop trigger update_scheduling_specification_goal on scheduler.scheduling_specification_goals;
 with priorities as (
   select
     goal_invocation_id,
@@ -154,7 +158,11 @@ set priority = p.new_prio - 1 -- -1, as priority starts at 0
 from priorities p
 where p.goal_invocation_id = ssg.goal_invocation_id;
 -- Reenable trigger
-alter table scheduler.scheduling_specification_goals enable trigger update_scheduling_specification_goal;
+create trigger update_scheduling_specification_goal
+  before update on scheduler.scheduling_specification_goals
+  for each row
+  when (old.priority IS DISTINCT FROM new.priority AND pg_trigger_depth() < 1)
+execute function scheduler.update_scheduling_specification_goal_func();
 
 /*************
   Constraints
