@@ -129,9 +129,8 @@ drop trigger update_scheduling_model_specification_goal on scheduler.scheduling_
 with priorities as (
   select
     goal_invocation_id,
-    row_number() over (partition by model_id) as new_prio
+    row_number() over (partition by model_id order by priority) as new_prio
   from scheduler.scheduling_model_specification_goals smg
-  order by priority
 )
 update scheduler.scheduling_model_specification_goals smg
 set priority = p.new_prio - 1 -- -1, as priority starts at 0
@@ -149,9 +148,8 @@ drop trigger update_scheduling_specification_goal on scheduler.scheduling_specif
 with priorities as (
   select
     goal_invocation_id,
-    row_number() over (partition by specification_id) as new_prio
+    row_number() over (partition by specification_id order by priority) as new_prio
   from scheduler.scheduling_specification_goals ssg
-  order by priority
 )
 update scheduler.scheduling_specification_goals ssg
 set priority = p.new_prio - 1 -- -1, as priority starts at 0
