@@ -19,8 +19,9 @@ services:
     ports: [ "27186:27186" ]
     restart: always
     volumes:
-      - ./action-server:/app:cached
       - aerie_file_store:/usr/src/app/action_file_store
+    networks:
+      - aerie_net
   aerie_gateway:
     container_name: aerie_gateway
     depends_on: ["postgres"]
