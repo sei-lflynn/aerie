@@ -9,7 +9,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+import javax.json.JsonString;
+import javax.json.stream.JsonParser;
 import java.io.IOException;
+import java.io.StringReader;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -71,11 +77,11 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
       "2023-01-01T00:00:00Z",
       "2023-01-08T00:00:00Z",
       "2024-10-01T00:00:00Z",
-      """
+      generateJsonObjectFromString("""
           {
             "version": 1
           }
-          """
+          """)
   );
   private final List<HasuraRequests.ExternalEvent> externalEvents = List.of(
       new HasuraRequests.ExternalEvent(
@@ -85,12 +91,12 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           externalSource.derivation_group_name(),
           "2023-01-01T01:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserA",
             "code": "A"
           }
-        """
+        """)
       ),
       new HasuraRequests.ExternalEvent(
           "Event_02",
@@ -99,13 +105,13 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           externalSource.derivation_group_name(),
           "2023-01-01T03:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserA",
             "code": "A",
             "optional": "present"
           }
-        """
+        """)
       ),
       new HasuraRequests.ExternalEvent(
           "Event_03",
@@ -114,13 +120,13 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           externalSource.derivation_group_name(),
           "2023-01-01T05:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserB",
             "code": "B",
             "optional": "present"
           }
-        """
+        """)
       )
   );
 
@@ -132,12 +138,12 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
       "2023-01-01T00:00:00Z",
       "2023-01-08T00:00:00Z",
       "2024-10-01T00:00:00Z",
-      """
+      generateJsonObjectFromString("""
           {
             "version": 2,
             "optional": "present"
           }
-          """
+          """)
   );
 
   private final List<HasuraRequests.ExternalEvent> additionalExternalEvents = List.of(
@@ -148,13 +154,13 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           additionalExternalSource.derivation_group_name(),
           "2023-01-02T01:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserB",
             "code": "B",
             "optional": "present"
           }
-        """
+        """)
       ),
       new HasuraRequests.ExternalEvent(
           "Event_02",
@@ -163,12 +169,12 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           additionalExternalSource.derivation_group_name(),
           "2023-01-02T03:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserB",
             "code": "B"
           }
-        """
+        """)
       ),
       new HasuraRequests.ExternalEvent(
           "Event_03",
@@ -177,14 +183,24 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
           additionalExternalSource.derivation_group_name(),
           "2023-01-02T05:00:00Z",
           "01:00:00",
-          """
+          generateJsonObjectFromString("""
           {
             "projectUser": "UserA",
             "code": "A"
           }
-        """
+        """)
       )
   );
+
+  private JsonObject generateJsonObjectFromString(String validJsonString) {
+    try {
+      StringReader reader = new StringReader(validJsonString);
+      JsonReader jsonReader =Json.createReader(reader);
+      return jsonReader.readObject();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   @BeforeEach
   void localBeforeEach() throws IOException {

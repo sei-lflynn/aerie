@@ -101,8 +101,8 @@ public class HasuraRequests implements AutoCloseable {
   }
 
   //region Records
-  public record ExternalEvent(String key, String event_type_name, String source_key, String derivation_group_name, String start_time, String duration, String attributes) {}
-  public record ExternalSource(String key, String source_type_name, String derivation_group_name, String valid_at, String start_time, String end_time, String created_at, String attributes){}
+  public record ExternalEvent(String key, String event_type_name, String source_key, String derivation_group_name, String start_time, String duration, JsonObject attributes) {}
+  public record ExternalSource(String key, String source_type_name, String derivation_group_name, String valid_at, String start_time, String end_time, String created_at, JsonObject attributes){}
   //endregion Records
 
   //region Mission Model
