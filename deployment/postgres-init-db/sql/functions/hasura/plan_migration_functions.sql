@@ -61,17 +61,13 @@ create function hasura.check_model_compatability(_plan_id integer, _new_model_id
   language plpgsql as $$
 declare
   _requester_username text;
-  _function_permission permissions.permission;
   _old_model_id integer;
   _param_mismatch_count integer := 0;
   _missing_count integer := 0;
 
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
-  _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
-  if not _function_permission = 'NO_CHECK' then
-    call permissions.check_general_permissions('migrate_plan_to_model', _function_permission, _plan_id, _requester_username);
-  end if;
+
   -- Get the old model ID associated with the plan
   select model_id into _old_model_id from merlin.plan where id = _plan_id;
 
