@@ -7,6 +7,7 @@ declare
   _requester_username text;
   _function_permission permissions.permission;
   _open_merge_count integer;
+  _old_model_id integer;
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
   _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
@@ -22,8 +23,18 @@ begin
       raise exception 'Cannot migrate plan %: it has open merge requests.', _plan_id;
   end if;
 
+  -- Get the old model ID associated with the plan
+  select model_id into _old_model_id from merlin.plan where id = _plan_id;
+
   -- Create snapshot before migration
-  perform merlin.create_snapshot(_plan_id, 'Migration to model '|| _new_model_id || ' on ' || NOW(), 'Automatic snapshot before attempting migration to model id ' || _new_model_id || ' on ' || NOW(), _requester_username);
+  perform merlin.create_snapshot(_plan_id,
+                                 'Migration from model '|| _old_model_id ||
+                                 ' to model ' || _new_model_id ||
+                                 ' on ' || NOW(),
+                                 'Automatic snapshot before attempting migration from model id ' || _old_model_id ||
+                                 ' to model id ' || _new_model_id ||
+                                 ' on ' || NOW(),
+                                 _requester_username);
 
   -- Perform model migration
   update merlin.plan
