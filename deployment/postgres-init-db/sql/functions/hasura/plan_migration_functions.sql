@@ -12,6 +12,9 @@ begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
   _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
   perform permissions.raise_if_plan_merge_permission('migrate_plan_to_model', _function_permission);
+  if not _function_permission = 'NO_CHECK' then
+    call permissions.check_general_permissions('migrate_plan_to_model', _function_permission, _plan_id, _requester_username);
+  end if;
 
   -- Check for open merge requests
   select count(*) into _open_merge_count
@@ -66,8 +69,9 @@ declare
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
   _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
-  perform permissions.raise_if_plan_merge_permission('migrate_plan_to_model', _function_permission);
-
+  if not _function_permission = 'NO_CHECK' then
+    call permissions.check_general_permissions('migrate_plan_to_model', _function_permission, _plan_id, _requester_username);
+  end if;
   -- Get the old model ID associated with the plan
   select model_id into _old_model_id from merlin.plan where id = _plan_id;
 
