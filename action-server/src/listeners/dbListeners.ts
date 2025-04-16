@@ -9,6 +9,7 @@ import type { ActionDefinitionInsertedPayload, ActionResponse, ActionRunInserted
 import { extractSchemas } from "../utils/codeRunner";
 import { createLogger, format, transports } from "winston";
 import logger from "../utils/logger";
+import {ActionRunCancellationRequestPayload} from "../type/types";
 
 let listenClient: PoolClient | undefined;
 
@@ -47,6 +48,10 @@ async function refreshActionDefinitionSchema(payload: ActionDefinitionInsertedPa
   }
 }
 
+async function cancelAction(payload: ActionRunCancellationRequestPayload) {
+  ActionWorkerPool.cancelTask(payload.action_run_id);
+}
+
 async function runAction(payload: ActionRunInsertedPayload) {
   const actionRunId = payload.action_run_id;
   const actionFilePath = payload.action_file_path;
@@ -63,28 +68,40 @@ async function runAction(payload: ActionRunInsertedPayload) {
   const pool = ActionsDbManager.getDb();
   logger.info(`Submitting task to worker pool for action run ${actionRunId}`);
   const start = performance.now();
-
   let run, taskError;
   try {
     run = (await ActionWorkerPool.submitTask({
-      actionJS,
-      parameters,
-      settings,
-      workspaceId,
-    })) satisfies ActionResponse;
+          actionJS: actionJS,
+          action_run_id: actionRunId,
+          parameters: parameters,
+          settings: settings,
+          workspaceId: workspaceId,
+          abort_controller: new AbortController()
+        }
+    )) satisfies ActionResponse;
   } catch (error: any) {
-    logger.error("Error running task:", error);
-    taskError = { message: error.message, stack: error.stack };
+    if (error?.name === "AbortError") {
+      // todo: verify that this will only happen on deliberate cancel
+      logger.info(`Action run ${actionRunId} has been canceled`);
+    } else {
+      logger.error("Error running task:", error);
+      taskError = {message: error.message, stack: error.stack};
+      logger.error(JSON.stringify(taskError));
+      logger.error(`Run is ${JSON.stringify(run || "")}`);
+    }
   }
 
   const duration = Math.round(performance.now() - start);
   const status = taskError || run?.errors ? "failed" : "success";
   logger.info(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
+  const errorValue = JSON.stringify(taskError || run?.errors || {});
+
 
   const logStr = run ? run.console.join("\n") : "";
 
   // update action_run row in DB with status/results/errors/logs
   try {
+
     const res = await pool.query(
       `
       UPDATE actions.action_run
@@ -99,8 +116,8 @@ async function runAction(payload: ActionRunInsertedPayload) {
     `,
       [
         status,
-        JSON.stringify(taskError || run?.errors),
-        run ? JSON.stringify(run.results) : undefined,
+        errorValue,
+        run && run.results ? JSON.stringify(run.results) : JSON.stringify("{}"),
         logStr,
         duration,
         payload.action_run_id,
@@ -124,6 +141,8 @@ export async function setupListeners() {
   listenClient.query("LISTEN action_definition_inserted");
   // these occur when a user inserts a row in the `action_run` table, signifying a run request
   listenClient.query("LISTEN action_run_inserted");
+  // these occur when a user sets the `canceled` of an `action_run` to true, signifying a cancellation request
+  listenClient.query("LISTEN action_run_cancel_requested");
 
   listenClient.on("notification", async (msg) => {
     console.info(`PG notify event: ${JSON.stringify(msg, null, 2)}`);
@@ -137,6 +156,8 @@ export async function setupListeners() {
       await refreshActionDefinitionSchema(payload);
     } else if (msg.channel === "action_run_inserted") {
       await runAction(payload);
+    } else if (msg.channel === "action_run_cancel_requested") {
+      await cancelAction(payload);
     }
   });
   logger.info("Initialized PG event listeners");

@@ -27,10 +27,12 @@ export type ActionConfig = {
 
 export type ActionTask = {
   actionJS: string;
+  action_run_id: string;
   parameters: Record<string, any>;
   settings: Record<string, any>;
   auth?: string;
   workspaceId: number;
+  abort_controller: AbortController;
 };
 
 export type ActionDefinitionInsertedPayload = {
@@ -45,6 +47,11 @@ export type ActionRunInsertedPayload = {
   action_definition_id: number;
   workspace_id: number;
   action_file_path: string;
+};
+
+export type ActionRunCancellationRequestPayload = {
+  action_run_id: string;
+  canceled: boolean;
 };
 
 export type ActionResponse =
