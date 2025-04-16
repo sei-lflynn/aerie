@@ -278,7 +278,7 @@ public class UserSequenceTests {
   }
 
   @Test
-  void canDeleteLockedSequence() throws SQLException {
+  void canDeleteUnlockedSequence() throws SQLException {
     final var otherSequenceId = createUserSequence("Test Sequence 3", parcelId, workspaceId, sequenceDefinition, sequenceUser.name());
 
     assertDoesNotThrow(()->deleteUserSequence(otherSequenceId));
