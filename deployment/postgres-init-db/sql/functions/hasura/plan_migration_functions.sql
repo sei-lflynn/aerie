@@ -6,7 +6,6 @@ create function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id int
 declare
   _requester_username text;
   _function_permission permissions.permission;
-  _open_merge_count integer;
   _old_model_id integer;
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
@@ -16,13 +15,11 @@ begin
     call permissions.check_general_permissions('migrate_plan_to_model', _function_permission, _plan_id, _requester_username);
   end if;
 
-  -- Check for open merge requests
-  select count(*) into _open_merge_count
-  from merlin.merge_request
-  where _plan_id = migrate_plan_to_model._plan_id
-    and status in ('pending', 'in-progress');
 
-  if _open_merge_count > 0 then
+  -- Check for open merge requests
+  if exists(select from merlin.merge_request mr
+            where mr.plan_id_receiving_changes = _plan_id
+              and status in ('pending', 'in-progress')) then
       raise exception 'Cannot migrate plan %: it has open merge requests.', _plan_id;
   end if;
 
