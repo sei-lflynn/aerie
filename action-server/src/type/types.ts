@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import {MessagePort} from "worker_threads";
+import { MessagePort } from "worker_threads";
 
 export type ActionRunRequest = {
   actionJS: string;

@@ -2,11 +2,10 @@ import { threadId } from "worker_threads";
 import { jsExecute } from "../utils/codeRunner";
 import { ActionResponse, ActionTask } from "../type/types";
 import logger from "../utils/logger";
-import {configuration} from "../config";
+import { configuration } from "../config";
 import pg from "pg";
-import {ActionWorkerPool} from "./workerPool";
-import { MessageChannel, MessagePort } from 'worker_threads';
-
+import { ActionWorkerPool } from "./workerPool";
+import { MessageChannel, MessagePort } from "worker_threads";
 
 const { AERIE_DB, AERIE_DB_HOST, AERIE_DB_PORT, ACTION_DB_USER, ACTION_DB_PASSWORD } = configuration();
 
@@ -29,7 +28,7 @@ function getDbPool() {
     password: ACTION_DB_PASSWORD,
     // should have exactly one client/connection
     min: 1,
-    max: 1
+    max: 1,
   });
 
   dbPool.on("error", (err) => {
@@ -66,18 +65,17 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
   logger.info(`Settings: ${JSON.stringify(task.settings, null, 2)}`);
 
   // Set up the message listener
-  let aborted = false;
   if (task.message_port) {
-    task.message_port.on('message', (msg) => {
-      if (msg.type === 'abort') {
-        aborted = true;
+    task.message_port.on("message", async (msg) => {
+      if (msg.type === "abort") {
         logger.info(`[${threadId}] Received abort message`);
-        releaseDbPoolAndClient().then(() => {
+        try {
+          await releaseDbPoolAndClient();
           logger.info(`[${threadId}] Async cleanup complete`);
-          task.message_port?.postMessage({ type: 'cleanup_complete' });
-        }).catch(err => {
+          task.message_port?.postMessage({ type: "cleanup_complete" });
+        } catch (err) {
           logger.error(`[${threadId}] Error during async cleanup`, err);
-        });
+        }
       }
     });
   }
@@ -85,22 +83,18 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
   const client = await getDbClient();
   logger.info(`[${threadId}] Connected to DB`);
 
-
   // update this action run in the database to show "incomplete"
   try {
-    logger.info(`[${threadId}] Attempting to mark action run ${task.action_run_id} as incomplete`)
+    logger.info(`[${threadId}] Attempting to mark action run ${task.action_run_id} as incomplete`);
     const res = await client.query(
-        `
+      `
       UPDATE actions.action_run
       SET
         status = $1
       WHERE id = $2
         RETURNING *;
     `,
-        [
-          "incomplete",
-          task.action_run_id,
-        ],
+      ["incomplete", task.action_run_id],
     );
     logger.info("Updated action_run:", res.rows[0]);
   } catch (error) {

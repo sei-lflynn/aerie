@@ -9,7 +9,7 @@ import type { ActionDefinitionInsertedPayload, ActionResponse, ActionRunInserted
 import { extractSchemas } from "../utils/codeRunner";
 import { createLogger, format, transports } from "winston";
 import logger from "../utils/logger";
-import {ActionRunCancellationRequestPayload} from "../type/types";
+import { ActionRunCancellationRequestPayload } from "../type/types";
 
 let listenClient: PoolClient | undefined;
 
@@ -71,22 +71,21 @@ async function runAction(payload: ActionRunInsertedPayload) {
   let run, taskError;
   try {
     run = (await ActionWorkerPool.submitTask({
-          actionJS: actionJS,
-          action_run_id: actionRunId,
-          parameters: parameters,
-          settings: settings,
-          workspaceId: workspaceId,
-          abort_controller: new AbortController(),
-          message_port: null,
-        }
-    )) satisfies ActionResponse;
+      actionJS: actionJS,
+      action_run_id: actionRunId,
+      parameters: parameters,
+      settings: settings,
+      workspaceId: workspaceId,
+      abort_controller: new AbortController(),
+      message_port: null,
+    })) satisfies ActionResponse;
   } catch (error: any) {
     if (error?.name === "AbortError") {
       // todo: verify that this will only happen on deliberate cancel
       logger.info(`Action run ${actionRunId} has been canceled`);
     } else {
       logger.error("Error running task:", error);
-      taskError = {message: error.message, stack: error.stack};
+      taskError = { message: error.message, stack: error.stack };
       logger.error(JSON.stringify(taskError));
       logger.error(`Run is ${JSON.stringify(run || "")}`);
     }
@@ -97,12 +96,10 @@ async function runAction(payload: ActionRunInsertedPayload) {
   logger.info(`Finished run ${actionRunId} in ${duration / 1000}s - ${status}`);
   const errorValue = JSON.stringify(taskError || run?.errors || {});
 
-
   const logStr = run ? run.console.join("\n") : "";
 
   // update action_run row in DB with status/results/errors/logs
   try {
-
     const res = await pool.query(
       `
       UPDATE actions.action_run
