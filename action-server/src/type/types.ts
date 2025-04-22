@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import {MessagePort} from "worker_threads";
 
 export type ActionRunRequest = {
   actionJS: string;
@@ -33,6 +34,7 @@ export type ActionTask = {
   auth?: string;
   workspaceId: number;
   abort_controller: AbortController;
+  message_port: MessagePort | null;
 };
 
 export type ActionDefinitionInsertedPayload = {

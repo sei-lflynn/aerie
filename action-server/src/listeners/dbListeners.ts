@@ -76,7 +76,8 @@ async function runAction(payload: ActionRunInsertedPayload) {
           parameters: parameters,
           settings: settings,
           workspaceId: workspaceId,
-          abort_controller: new AbortController()
+          abort_controller: new AbortController(),
+          message_port: null,
         }
     )) satisfies ActionResponse;
   } catch (error: any) {

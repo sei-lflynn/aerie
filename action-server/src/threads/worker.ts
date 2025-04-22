@@ -5,6 +5,8 @@ import logger from "../utils/logger";
 import {configuration} from "../config";
 import pg from "pg";
 import {ActionWorkerPool} from "./workerPool";
+import { MessageChannel, MessagePort } from 'worker_threads';
+
 
 const { AERIE_DB, AERIE_DB_HOST, AERIE_DB_PORT, ACTION_DB_USER, ACTION_DB_PASSWORD } = configuration();
 
@@ -58,10 +60,26 @@ async function releaseDbPoolAndClient(): Promise<void> {
   }
 }
 
-export async function runAction(  task: ActionTask ): Promise<ActionResponse> {
+export async function runAction(task: ActionTask): Promise<ActionResponse> {
   logger.info(`Worker [${threadId}] running task`);
   logger.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);
   logger.info(`Settings: ${JSON.stringify(task.settings, null, 2)}`);
+
+  // Set up the message listener
+  let aborted = false;
+  if (task.message_port) {
+    task.message_port.on('message', (msg) => {
+      if (msg.type === 'abort') {
+        aborted = true;
+        logger.info(`[${threadId}] Received abort message`);
+        releaseDbPoolAndClient().then(() => {
+          logger.info(`[${threadId}] Async cleanup complete`);
+        }).catch(err => {
+          logger.error(`[${threadId}] Error during async cleanup`, err);
+        });
+      }
+    });
+  }
 
   const client = await getDbClient();
   logger.info(`[${threadId}] Connected to DB`);
