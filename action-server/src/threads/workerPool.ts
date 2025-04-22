@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { ActionResponse, ActionTask } from "../type/types";
 import { configuration } from "../config";
 import logger from "../utils/logger";
-import { MessageChannel, MessagePort } from 'worker_threads';
+import {MessageChannel, MessagePort, threadId} from 'worker_threads';
 
 export class ActionWorkerPool {
   private static piscina: Piscina<any, any>;
@@ -36,7 +36,10 @@ export class ActionWorkerPool {
 
 
     try {
-      return await ActionWorkerPool.piscina.run(task, { name: "runAction" , transferList: [port2]});
+      return await ActionWorkerPool.piscina.run(task, {
+        name: "runAction",
+        signal: task.abort_controller.signal,
+        transferList: [port2]});
     } catch (error) {
       // todo: differentiate between task submission failure and cancellation
       console.log(error);
@@ -46,18 +49,41 @@ export class ActionWorkerPool {
   }
 
   static cancelTask(action_run_id: string) {
+    console.info(`Attempting to cancel task ${action_run_id}`);
     if (this.abortControllerForActionRun.has(action_run_id)) {
       // kill the task and delete from the abortControllers data structure
       // todo: graceful shutdown by passing signal to worker
       const port = this.messagePortsForActionRun.get(action_run_id);
       if (port) {
+        console.info(`Setting up abort for task ${action_run_id}`);
+        port.on('message', (msg) => {
+          if (msg.type === 'cleanup_complete') {
+            logger.info(`[${threadId}] Received cleanup_complete message, aborting...`);
+
+            this.abortControllerForActionRun.get(action_run_id)?.abort();
+            this.abortControllerForActionRun.delete(action_run_id);
+            this.messagePortsForActionRun.delete(action_run_id);
+
+            // releaseDbPoolAndClient().then(() => {
+            //   logger.info(`[${threadId}] Async cleanup complete`);
+            //   task.message_port?.postMessage("cleanup_complete");
+            // }).catch(err => {
+            //   logger.error(`[${threadId}] Error during async cleanup`, err);
+            // });
+          }
+        });
+
+        console.info(`Posting abort message for task ${action_run_id}`);
         port.postMessage({ type: 'abort' });
+
       } else {
-        console.warn(`No port found for task ${action_run_id}`);
+        console.warn(`No message port found for task ${action_run_id}`);
       }
-      this.abortControllerForActionRun.get(action_run_id)?.abort();
-      this.abortControllerForActionRun.delete(action_run_id);
-      this.messagePortsForActionRun.delete(action_run_id);
+      // this.abortControllerForActionRun.get(action_run_id)?.abort();
+      // this.abortControllerForActionRun.delete(action_run_id);
+      // this.messagePortsForActionRun.delete(action_run_id);
+    } else {
+      console.warn(`No abort controller found for task ${action_run_id}`);
     }
   }
 

@@ -74,6 +74,7 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
         logger.info(`[${threadId}] Received abort message`);
         releaseDbPoolAndClient().then(() => {
           logger.info(`[${threadId}] Async cleanup complete`);
+          task.message_port?.postMessage({ type: 'cleanup_complete' });
         }).catch(err => {
           logger.error(`[${threadId}] Error during async cleanup`, err);
         });
