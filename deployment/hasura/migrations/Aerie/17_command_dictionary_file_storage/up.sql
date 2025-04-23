@@ -4,4 +4,4 @@ alter table sequencing.command_dictionary
 comment on column sequencing.command_dictionary.command_dictionary_file_path is e''
   'The location of the command dictionary file on the filesystem.';
 
-call migrations.mark_migration_applied('16');
+call migrations.mark_migration_applied('17');
