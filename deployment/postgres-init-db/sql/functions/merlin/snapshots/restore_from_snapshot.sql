@@ -3,6 +3,8 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 	declare
 		_snapshot_name text;
 		_plan_name text;
+		_model_name text;
+		_model_id integer;
 	begin
 		-- Input Validation
 		select name from merlin.plan where id = _plan_id into _plan_name;
@@ -22,9 +24,19 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
           _snapshot_id, _plan_name, _plan_id;
       end if;
     end if;
+    select model_id from merlin.plan_snapshot where snapshot_id = _snapshot_id into _model_id;
+    select name from merlin.mission_model where id = _model_id into _model_name;
+		if _model_name is null then
+      raise exception 'Cannot Restore: Model with ID % does not exist.', _model_id;
+    end if;
 
 		-- Catch Plan_Locked
 		call merlin.plan_locked_exception(_plan_id);
+
+    -- Update model_id of the plan
+    update merlin.plan
+    set model_id = _model_id
+    where id = _plan_id;
 
     -- Record the Union of Activities in Plan and Snapshot
     -- and note which ones have been added since the Snapshot was taken (in_snapshot = false)

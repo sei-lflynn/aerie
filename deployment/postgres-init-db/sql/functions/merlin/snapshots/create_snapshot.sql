@@ -19,8 +19,8 @@ begin
     raise exception 'Plan % does not exist.', _plan_id;
   end if;
 
-  insert into merlin.plan_snapshot(plan_id, revision, snapshot_name, description, taken_by)
-    select id, revision, _snapshot_name, _description, _user
+  insert into merlin.plan_snapshot(plan_id, model_id, revision, snapshot_name, description, taken_by)
+    select id, model_id, revision, _snapshot_name, _description, _user
     from merlin.plan where id = _plan_id
     returning snapshot_id into inserted_snapshot_id;
   insert into merlin.plan_snapshot_activities(
@@ -60,7 +60,7 @@ comment on function merlin.create_snapshot(integer) is e''
 
 comment on function merlin.create_snapshot(integer, text, text, text) is e''
   'Create a snapshot of the specified plan. A snapshot consists of:'
-  '  - The plan''s id and revision'
+  '  - The plan''s id, model id, and revision'
   '  - All the activities in the plan'
   '  - The preset status of those activities'
   '  - The tags on those activities'
