@@ -1,6 +1,5 @@
 alter table actions.action_run
-add column canceled boolean not null default false,
-;
+add column canceled boolean not null default false;
 
 comment on column actions.action_run.canceled is e''
   'Whether the user has requested that this action be cancelled.';
