@@ -1,4 +1,14 @@
 create table hasura.migrate_plan_to_model_return_value(result text);
+/*
+* This function does the following:
+*     * creates a snapshot of the specified plan
+*     * updates the specified plan to have model_id = _new_model_id
+*     * invalidates the activity validations, which will trigger the activity validator to run again
+* It will not update the plan if:
+*     * user has incorrect permissions (see default_user_roles for details)
+*     * there are open merge requests for the given plan
+*     * the given plan or model does not exist
+*/
 create function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json)
   returns hasura.migrate_plan_to_model_return_value
   volatile
@@ -54,22 +64,21 @@ $$;
 
 
 create table hasura.check_model_compatability_return_value(result json);
-create function hasura.check_model_compatability(_plan_id integer, _new_model_id integer, hasura_session json)
+/*
+* This function checks whether two models are compatible. It returns a json object containing:
+*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
+*     * altered_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
+*            new parameter schemas for this activity type
+*/
+create function hasura.check_model_compatability(_old_model_id integer, _new_model_id integer, hasura_session json)
   returns hasura.check_model_compatability_return_value
   volatile
   language plpgsql as $$
 declare
-  _requester_username     text;
-  _old_model_id           integer;
   _removed_activity_types text;
   _altered_activity_types text;
 
 begin
-  _requester_username := (hasura_session ->> 'x-hasura-user-id');
-
-  -- Get the old model ID associated with the plan
-  select model_id into _old_model_id from merlin.plan where id = _plan_id;
-
   _removed_activity_types := coalesce((select json_agg(name)
                                        from merlin.activity_type old_at
                                        where old_at.model_id = _old_model_id
