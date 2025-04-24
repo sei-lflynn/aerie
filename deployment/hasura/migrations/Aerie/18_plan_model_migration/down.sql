@@ -1,9 +1,9 @@
 -- Remove plan migration functions
-drop table hasura.migrate_plan_to_model_return_value;
 drop function hasura.migrate_plan_to_model();
+drop table hasura.migrate_plan_to_model_return_value;
 
-drop table hasura.check_model_compatability_return_value;
 drop function hasura.check_model_compatability;
+drop table hasura.check_model_compatability_return_value;
 
 -- Remove model_id from plan snapshot
 alter table merlin.plan_snapshot
