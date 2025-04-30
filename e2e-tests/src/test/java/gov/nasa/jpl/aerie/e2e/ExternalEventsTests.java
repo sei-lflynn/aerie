@@ -104,7 +104,7 @@ public class ExternalEventsTests {
     hasura.deleteExternalSource("TestExternalSourceKey", "TestDerivationGroup");
 
     // delete derivation groups
-    hasura.deleteDerivationGroup("TestDerivationGroup");
+    hasura.deleteDerivationGroup("TestDerivationGroup"); // set automatically by gateway if not provided by us
 
     // delete types
     hasura.deleteExternalSourceType("TestSourceType");
@@ -114,387 +114,73 @@ public class ExternalEventsTests {
   // test that a source goes in including all the attributes
   @Test
   void correctSourceAndEventAttributes() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     try (final var gateway = new GatewayRequests(playwright)) {
-      gateway.uploadExternalSource(externalSource);
+      gateway.uploadExternalSource("correct_source_and_event_attributes.json", "TestDerivationGroup");
     }
   }
+
 
   // test that a source fails missing an attribute
   @Test
   void sourceMissingAttribute() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    // missing: operator attribute
-    final String source = """
-        {
-          "attributes": { "version": 1 },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("source_missing_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should have required property 'operator'"));
   }
 
   // test that a source fails with an extra attribute
   @Test
   void sourceExtraAttribute() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    // has extra attribute "extra"
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha", "extra": "attribute" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("source_extra_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should NOT have additional properties"));
   }
 
   // test that a source fails with an attribute of the wrong type
   @Test
   void sourceWrongTypeAttribute() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    // has wrong type for attribute "version" - string instead of number
-    final String source = """
-        {
-          "attributes": { "version": "string", "operator": "alpha" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("source_wrong_type_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should be number"));
   }
 
   // test that optional attributes (listed in schema, but not marked as required) are okay
   @Test
   void sourceOptionalAttribute() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    // includes optional type
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha", "optional": "bear" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     try (final var gateway = new GatewayRequests(playwright)) {
-      gateway.uploadExternalSource(externalSource);
+      gateway.uploadExternalSource("source_optional_attribute.json", "TestDerivationGroup");
     }
   }
 
   // test that an event fails missing an attribute
   @Test
   void eventMissingAttribute() throws IOException {
-    // missing: code
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("event_missing_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should have required property 'code'"));
   }
 
   // test that an event fails with an extra attribute
   @Test
   void eventExtraAttribute() throws IOException {
-    // has extra attribute "extra"
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A",
-              "extra": "extra"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("event_extra_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should NOT have additional properties"));
   }
 
   // test that an event fails with an attribute of the wrong type
   @Test
   void eventWrongTypeAttribute() throws IOException {
-    // attribute "code" should be of type string
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": 1
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     final var gateway = new GatewayRequests(playwright);
-    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource(externalSource));
+    final RuntimeException ex = assertThrows(RuntimeException.class, () -> gateway.uploadExternalSource("event_wrong_type_attribute.json", "TestDerivationGroup"));
     assertTrue(ex.getMessage().contains("should be string"));
   }
 
   // test that optional attributes (listed in schema, but not marked as required) are okay
   @Test
   void eventOptionalAttribute() throws IOException {
-    final String events = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A",
-              "optional": "optionalArg"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "TestEventType",
-            "key": "Event_01",
-            "start_time": "2024-01-21T01:00:00+00:00"
-          }
-        ]
-        """;
-
-    // includes optional type
-    final String source = """
-        {
-          "attributes": { "version": 1, "operator": "alpha", "optional": "optionalArg" },
-          "derivation_group_name": "TestDerivationGroup",
-          "period": {
-            "start_time": "2024-01-21T00:00:00+00:00",
-            "end_time": "2024-01-28T00:00:00+00:00"
-          },
-          "key": "TestExternalSourceKey",
-          "source_type_name": "TestSourceType",
-          "valid_at": "2024-01-19T00:00:00+00:00"
-        }
-        """;
-
-    final JsonObject externalSource = Json.createObjectBuilder()
-                                          .add("source", source)
-                                          .add("events", events)
-                                          .build();
-
     try (final var gateway = new GatewayRequests(playwright)) {
-      gateway.uploadExternalSource(externalSource);
+      gateway.uploadExternalSource("event_optional_attribute.json", "TestDerivationGroup");
     }
   }
 }

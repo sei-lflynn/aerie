@@ -97,122 +97,12 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
     }
   }
 
+
   void uploadExternalSources() throws IOException {
-    final String eventsA = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_01",
-            "start_time": "2023-01-01T01:00:00+00:00"
-          },
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A",
-              "optional": "present"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_02",
-            "start_time": "2023-01-01T03:00:00+00:00"
-          },
-          {
-            "attributes": {
-              "projectUser": "UserB",
-              "code": "B",
-              "optional": "present"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_03",
-            "start_time": "2023-01-01T05:00:00+00:00"
-          }
-        ]
-        """.formatted(EVENT_TYPE, EVENT_TYPE, EVENT_TYPE);
-
-
-    final String eventsB = """
-        [
-          {
-            "attributes": {
-              "projectUser": "UserB",
-              "code": "B",
-              "optional": "present"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_01",
-            "start_time": "2023-01-02T01:00:00+00:00"
-          },
-          {
-            "attributes": {
-              "projectUser": "UserB",
-              "code": "B"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_02",
-            "start_time": "2023-01-02T03:00:00+00:00"
-          },
-          {
-            "attributes": {
-              "projectUser": "UserA",
-              "code": "A"
-            },
-            "duration": "01:00:00",
-            "event_type_name": "%s",
-            "key": "Event_03",
-            "start_time": "2023-01-02T05:00:00+00:00"
-          }
-        ]
-        """.formatted(EVENT_TYPE, ADDITIONAL_EVENT_TYPE, ADDITIONAL_EVENT_TYPE);
-
-    final String sourceA = """
-        {
-          "attributes": { "version": 1 },
-          "derivation_group_name": "%s",
-          "period": {
-            "start_time": "2023-01-01T00:00:00+00:00",
-            "end_time": "2023-01-08T00:00:00+00:00"
-          },
-          "key": "%s",
-          "source_type_name": "%s",
-          "valid_at": "2024-01-01T00:00:00+00:00"
-        }
-        """.formatted(DERIVATION_GROUP, SOURCE_KEY, SOURCE_TYPE);
-
-    final String sourceB = """
-        {
-          "attributes": { "version": 2, "optional": "present" },
-          "derivation_group_name": "%s",
-          "period": {
-            "start_time": "2023-01-01T00:00:00+00:00",
-            "end_time": "2023-01-08T00:00:00+00:00"
-          },
-          "key": "%s",
-          "source_type_name": "%s",
-          "valid_at": "2024-01-01T00:00:00+00:00"
-        }
-        """.formatted(ADDITIONAL_DERIVATION_GROUP, ADDITIONAL_SOURCE_KEY, SOURCE_TYPE);
-
-    final JsonObject externalSourceA = Json.createObjectBuilder()
-                                          .add("source", sourceA)
-                                          .add("events", eventsA)
-                                          .build();
-
-    final JsonObject externalSourceB = Json.createObjectBuilder()
-                                           .add("source", sourceB)
-                                           .add("events", eventsB)
-                                           .build();
-
     try (final var gateway = new GatewayRequests(playwright)) {
-      gateway.uploadExternalSource(externalSourceA);
-      gateway.uploadExternalSource(externalSourceB);
+      // TODO: fix derivation groups
+      gateway.uploadExternalSource("scheduling_source_A.json", DERIVATION_GROUP);
+      gateway.uploadExternalSource("scheduling_source_B.json", ADDITIONAL_DERIVATION_GROUP);
     }
   }
 

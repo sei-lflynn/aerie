@@ -9,8 +9,7 @@ import com.microsoft.playwright.options.RequestOptions;
 
 import javax.json.Json;
 import javax.json.JsonObject;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -114,13 +113,26 @@ public class GatewayRequests implements AutoCloseable {
     }
   }
 
-  public void uploadExternalSource(JsonObject externalSource) throws RuntimeException {
+  public void uploadExternalSource(String externalSourcePath, String derivationGroupName) throws RuntimeException, IOException {
+    byte[] buffer = Files.readAllBytes(Path.of("src/test/resources/" + externalSourcePath));
+    FilePayload filePayload = new FilePayload(externalSourcePath, "application/json", buffer);
+
     final var response = request.post("/uploadExternalSource", RequestOptions.create()
-                                                                             .setHeader("Authorization", "Bearer "+token)
-                                                                                 .setHeader(
-                                                                                     "Content-Type",
-                                                                                     "application/json")
-                                                                                 .setData(externalSource.toString()));
+                                                                             .setHeader(
+                                                                                 "Authorization",
+                                                                                 "Bearer " + token)
+                                                                             .setMultipart(FormData
+                                                                                               .create()
+                                                                                               .set(
+                                                                                                   "external_source_file",
+                                                                                                   filePayload
+                                                                                               )
+                                                                                               .set(
+                                                                                                   "derivation_group_name",
+                                                                                                   derivationGroupName
+                                                                                               )
+                                                                             )
+    );
     try (final var reader = Json.createReader(new StringReader(response.text()))) {
       final JsonObject bodyJson = reader.readObject();
       if (!bodyJson.containsKey("createExternalSource")) {
