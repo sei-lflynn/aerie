@@ -183,6 +183,7 @@ app.get('/health', (_: Request, res: Response) => {
 
 app.post('/put-dictionary', async (req, res, next) => {
   const dictionary = req.body.input.dictionary as string;
+  const persistDictionaryToFilesystem = req.body.input.persistDictionaryToFilesystem as boolean;
   logger.info(`Dictionary received`);
 
   let parsedDictionaries: {
@@ -221,12 +222,16 @@ app.post('/put-dictionary', async (req, res, next) => {
     }
 
     const dictionaryPath = await processDictionary(parsedDictionary, dictionaryType as DictionaryType);
-    // TODO: We'll eventually need to be able to handle dynamic filetypes, right now those aren't passed through in the Hasura action.
-    const commandDictionaryFilePath = await writeFile(
-      `command.${parsedDictionary.header.version}.xml`,
-      parsedDictionary.header.mission_name.toLowerCase(),
-      dictionary,
-    );
+    let commandDictionaryFilePath = undefined;
+
+    if (persistDictionaryToFilesystem) {
+      // TODO: We'll eventually need to be able to handle dynamic filetypes, right now those aren't passed through in the Hasura action.
+      commandDictionaryFilePath = await writeFile(
+        `command.${parsedDictionary.header.version}.xml`,
+        parsedDictionary.header.mission_name.toLowerCase(),
+        dictionary,
+      );
+    }
 
     logger.info(`lib generated - path: ${dictionaryPath}`);
     db_value = [
