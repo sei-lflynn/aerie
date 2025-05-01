@@ -246,6 +246,21 @@ public class PlanCollaborationTests {
     }
   }
 
+  private List<Integer> getPlanMetadata(final int planId) throws SQLException{
+    try (final var statement = connection.createStatement()) {
+      final var res = statement.executeQuery(
+          //language=sql
+          """
+          SELECT merlin.get_plan_history(%d);
+          """.formatted(planId));
+      final ArrayList<Integer> ancestorPlanIds = new ArrayList<>();
+      while(res.next()) {
+        ancestorPlanIds.add(res.getInt(1));
+      }
+      return ancestorPlanIds;
+    }
+  }
+
   private void lockPlan(final int planId) throws SQLException{
     try(final var statement = connection.createStatement()){
       statement.execute(
@@ -421,6 +436,44 @@ public class PlanCollaborationTests {
       }
     }
     return activities;
+  }
+
+  private String checkModelCompatability(final int oldModelId, final int newModelId) throws SQLException{
+    try(final var statement = connection.createStatement()){
+      final var res = statement.executeQuery(
+          //language=sql
+          """
+          select hasura.check_model_compatability(%d, %d, 'PlanCollaborationTests Requester');
+          """.formatted(oldModelId, newModelId)
+      );
+      return res.getString(0);
+    }
+  }
+
+  private Boolean migratePlanToModel(final int planId, final int newModelId) throws SQLException{
+    try(final var statement = connection.createStatement()){
+      final var res = statement.executeQuery(
+          //language=sql
+          """
+          select hasura.migrate_plan_to_model(%d, %d, '{"x-hasura-user-id": "PlanCollaborationTests Requester"}');
+          """.formatted(planId, newModelId)
+      );
+      return res.next();
+    }
+  }
+
+  private Integer getPlanModel(final int planId) throws SQLException {
+    try (final var statement = connection.createStatement()) {
+      final var res = statement.executeQuery(
+          //language=sql
+          """
+          select model_id
+          from merlin.plan
+          where id = %d;
+          """.formatted(planId));
+      assertTrue(res.next());
+      return res.getInt(1);
+    }
   }
 
   private Activity getActivity(final int planId, final int activityId) throws SQLException {
@@ -3546,4 +3599,129 @@ public class PlanCollaborationTests {
       assertEquals(case8Tags, tagsHelper.getTagsOnActivity(case8Id, planId));
     }
   }
+
+  @Nested
+  class PlanMigrationTests{
+    /**
+     * Check that migration fails if:
+     *  (a) _plan_id is invalid and _new_model_id is valid
+     *  (b) _plan_id is valid and _new_model_id is invalid
+     *  (c) _plan_id and _new_model_id are both invalid
+     *
+     */
+    @Test
+    void checkFailsForNonexistentPlansOrModels() throws SQLException {
+      final int existingPlanId = merlinHelper.insertPlan(missionModelId);
+
+      try{
+        migratePlanToModel(-1, missionModelId);
+        fail();
+      }
+      catch (SQLException sqEx){
+        if(!sqEx.getMessage().contains("Plan -1 does not exist"))
+          throw sqEx;
+      }
+
+      try{
+        migratePlanToModel(existingPlanId, -1);
+        fail();
+      }
+      catch (SQLException sqEx){
+        if(!sqEx.getMessage().contains("Model -1 does not exist"))
+          throw sqEx;
+      }
+
+      try{
+        migratePlanToModel(-1, -1);
+        fail();
+      }
+      catch (SQLException sqEx){
+        if(!sqEx.getMessage().contains("Plan -1 does not exist"))
+          throw sqEx;
+      }
+
+    }
+
+
+    /**
+     * Check that migration fails if there exist open merge requests on _plan_id.
+     */
+    @Test
+    void checkFailsForOpenMergeRequests() throws SQLException {
+      final int planId = merlinHelper.insertPlan(missionModelId);
+      final int modelFileId = merlinHelper.insertFileUpload();
+      final int modelId = merlinHelper.insertMissionModel(modelFileId);
+      final int branchId = duplicatePlan(planId, "MultiTags Test");
+      final int mergeRQ = createMergeRequest(planId, branchId);
+
+      try{
+        migratePlanToModel(planId, modelId);
+        fail();
+      }
+      catch (SQLException sqEx){
+        if(!sqEx.getMessage().contains("Cannot migrate plan "+planId+": it has open merge requests"))
+          throw sqEx;
+      }
+
+    }
+
+    /**
+     * Check that migration creates a snapshot.
+     */
+    @Test
+    void verifySnapshotCreated() throws SQLException {
+      final int planId = merlinHelper.insertPlan(missionModelId);
+      final int newModelFileId = merlinHelper.insertFileUpload();
+      final int newModelId = merlinHelper.insertMissionModel(newModelFileId);
+
+      try {
+        migratePlanToModel(planId, newModelId);
+        final List<Integer> snapshotIds = getLatestSnapshots(planId);
+        assertEquals(snapshotIds.size(), 1);
+      } catch (SQLException sqEx){
+        throw sqEx;
+      }
+    }
+
+    /**
+     * Check that migration changes the mission model of a given plan.
+     */
+    @Test
+    void verifyMigrationWorks() throws SQLException {
+      final int planId = merlinHelper.insertPlan(missionModelId);
+      final int newModelFileId = merlinHelper.insertFileUpload();
+      final int newModelId = merlinHelper.insertMissionModel(newModelFileId);
+
+      try {
+        migratePlanToModel(planId, newModelId);
+        final int modelIdInDb = getPlanModel(planId);
+        assertEquals(modelIdInDb, newModelId);
+      } catch (SQLException sqEx){
+        throw sqEx;
+      }
+    }
+
+
+    /**
+     * Check that migration changes the mission model of a given plan.
+     */
+    @Test
+    void verifyCompatabilityCheckWorks() throws SQLException {
+      final int planId = merlinHelper.insertPlan(missionModelId);
+      final int newModelFileId = merlinHelper.insertFileUpload();
+      final int newModelId = merlinHelper.insertMissionModel(newModelFileId);
+
+      try {
+        checkModelCompatability(missionModelId, newModelId);
+        final int modelIdInDb = getPlanModel(planId);
+        assertEquals(modelIdInDb, newModelId);
+      } catch (SQLException sqEx){
+        throw sqEx;
+      }
+    }
+
+
+  }
+
+
 }
