@@ -189,10 +189,4 @@ comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id
   'Restore a plan to its state described in the given snapshot.';
 
 
-
-
-
-
-
-
 call migrations.mark_migration_rolled_back('18');

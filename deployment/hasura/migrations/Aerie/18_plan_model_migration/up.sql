@@ -231,6 +231,14 @@ begin
                                                _requester_username);
   end if;
 
+  if not exists(select id from merlin.plan where id = _plan_id) then
+    raise exception 'Plan % does not exist, not proceeding with plan migration.', _plan_id;
+  end if;
+
+  if not exists(select id from merlin.mission_model where id = _new_model_id) then
+    raise exception 'Model % does not exist, not proceeding with plan migration.', _new_model_id;
+  end if;
+
 
   -- Check for open merge requests
   if exists(select
@@ -280,17 +288,23 @@ create function hasura.check_model_compatability(_old_model_id integer, _new_mod
   volatile
   language plpgsql as $$
 declare
-  _removed_activity_types text;
-  _altered_activity_types text;
+  _removed_activity_types json;
+  _altered_activity_types json;
 
 begin
+
+  if not exists (select 1 from merlin.mission_model where id = _old_model_id)
+    or not exists (select 1 from merlin.mission_model where id = _new_model_id) then
+    raise exception 'One or both models (% and %) do not exist, not proceeding with plan compatability check.', _old_model_id, _new_model_id;
+  end if;
+
   _removed_activity_types := coalesce((select json_agg(name)
                                        from merlin.activity_type old_at
                                        where old_at.model_id = _old_model_id
                                          and not exists(select
                                                         from merlin.activity_type new_at
                                                         where new_at.name = old_at.name
-                                                          and new_at.model_id = _new_model_id)), '{}'::json);
+                                                          and new_at.model_id = _new_model_id)), '[]'::json);
 
   _altered_activity_types := coalesce((select json_object_agg(types.n, types.t)
                                        from (select type.name as n,
@@ -315,4 +329,77 @@ begin
 end
 $$;
 
-call migrations.mark_migration_applied('18');
+
+create table hasura.check_model_compatability_for_plan_return_value(result json);
+
+/*
+* This function checks whether a plan is compatible with a given model. It returns a json object containing:
+*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
+*     * altered_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
+*            new parameter schemas for this activity type
+*     * impacted_directives, containing a list of the directives in the plan that fall into one of the two above categories
+*/
+create function hasura.check_model_compatability_for_plan(_plan_id integer, _new_model_id integer, hasura_session json)
+  returns hasura.check_model_compatability_for_plan_return_value
+  volatile
+  language plpgsql as $$
+declare
+  _removed json;
+  _altered json;
+  _old_model_id integer;
+  _problematic json;
+begin
+  -- Get the old model from the plan
+  select model_id into _old_model_id
+  from merlin.plan
+  where id = _plan_id;
+
+  if _old_model_id is null then
+    raise exception 'Plan ID % not found.', _plan_id;
+  end if;
+
+  -- Get compatibility check result
+  select
+    (result->'removed_activity_types')::json,
+    (result->'altered_activity_types')::json
+  into _removed, _altered
+  from hasura.check_model_compatability(_old_model_id, _new_model_id, hasura_session);
+
+  -- Identify problematic activity_directives
+  with
+    removed_names as (
+      select json_array_elements_text(_removed) as name
+    ),
+    altered_names as (
+      select key as name
+      from json_each(_altered)
+    ),
+    problematic as (
+      select to_json(ad) as activity_directive, 'removed' as issue
+      from merlin.activity_directive ad
+             join removed_names r on r.name = ad.name
+      where ad.plan_id = _plan_id
+
+      union all
+
+      select to_json(ad) as activity_directive, 'altered' as issue
+      from merlin.activity_directive ad
+             join altered_names a on a.name = ad.name
+      where ad.plan_id = _plan_id
+    )
+  select json_agg(json_build_object(
+      'activity_directive', activity_directive,
+      'issue', issue
+                  )) into _problematic
+  from problematic;
+
+  -- Build final result JSON. Note row(), if we don't include this hasura tries to cast raw json into the composite type
+  -- and complains.
+  return row(json_build_object(
+      'removed_activity_types', _removed,
+      'altered_activity_types', _altered,
+      'problematic_directives', coalesce(_problematic, '[]'::json))
+    )::hasura.check_model_compatability_for_plan_return_value;
+end
+$$;
+
