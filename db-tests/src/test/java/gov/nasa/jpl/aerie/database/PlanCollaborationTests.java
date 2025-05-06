@@ -438,12 +438,12 @@ public class PlanCollaborationTests {
     return activities;
   }
 
-  private String checkModelCompatability(final int oldModelId, final int newModelId) throws SQLException{
+  private String checkModelCompatibility(final int oldModelId, final int newModelId) throws SQLException{
     try(final var statement = connection.createStatement()){
       final var res = statement.executeQuery(
           //language=sql
           """
-          select hasura.check_model_compatability(%d, %d, 'PlanCollaborationTests Requester');
+          select hasura.check_model_compatibility(%d, %d, 'PlanCollaborationTests Requester');
           """.formatted(oldModelId, newModelId)
       );
       return res.getString(0);
@@ -3706,13 +3706,13 @@ public class PlanCollaborationTests {
      * Check that migration changes the mission model of a given plan.
      */
     @Test
-    void verifyCompatabilityCheckWorks() throws SQLException {
+    void verifyCompatibilityCheckWorks() throws SQLException {
       final int planId = merlinHelper.insertPlan(missionModelId);
       final int newModelFileId = merlinHelper.insertFileUpload();
       final int newModelId = merlinHelper.insertMissionModel(newModelFileId);
 
       try {
-        checkModelCompatability(missionModelId, newModelId);
+        checkModelCompatibility(missionModelId, newModelId);
         final int modelIdInDb = getPlanModel(planId);
         assertEquals(modelIdInDb, newModelId);
       } catch (SQLException sqEx){

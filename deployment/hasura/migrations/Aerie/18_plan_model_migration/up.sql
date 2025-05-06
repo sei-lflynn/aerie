@@ -276,15 +276,15 @@ end
 $$;
 
 
-create table hasura.check_model_compatability_return_value(result json);
+create table hasura.check_model_compatibility_return_value(result json);
 /*
 * This function checks whether two models are compatible. It returns a json object containing:
 *     * removed_activity_types, containing the activity types that are in the old model and not in the new model
 *     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
 *            new parameter schemas for this activity type
 */
-create function hasura.check_model_compatability(_old_model_id integer, _new_model_id integer, hasura_session json)
-  returns hasura.check_model_compatability_return_value
+create function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer, hasura_session json)
+  returns hasura.check_model_compatibility_return_value
   volatile
   language plpgsql as $$
 declare
@@ -295,7 +295,7 @@ begin
 
   if not exists (select 1 from merlin.mission_model where id = _old_model_id)
     or not exists (select 1 from merlin.mission_model where id = _new_model_id) then
-    raise exception 'One or both models (% and %) do not exist, not proceeding with plan compatability check.', _old_model_id, _new_model_id;
+    raise exception 'One or both models (% and %) do not exist, not proceeding with plan compatibility check.', _old_model_id, _new_model_id;
   end if;
 
   _removed_activity_types := coalesce((select json_agg(name)
@@ -325,12 +325,12 @@ begin
   return row (json_build_object(
       'removed_activity_types', _removed_activity_types,
       'modified_activity_types', _modified_activity_types
-              ))::hasura.check_model_compatability_return_value;
+              ))::hasura.check_model_compatibility_return_value;
 end
 $$;
 
 
-create table hasura.check_model_compatability_for_plan_return_value(result json);
+create table hasura.check_model_compatibility_for_plan_return_value(result json);
 
 /*
 * This function checks whether a plan is compatible with a given model. It returns a json object containing:
@@ -339,8 +339,8 @@ create table hasura.check_model_compatability_for_plan_return_value(result json)
 *            new parameter schemas for this activity type
 *     * impacted_directives, containing a list of the directives in the plan that fall into one of the two above categories
 */
-create function hasura.check_model_compatability_for_plan(_plan_id integer, _new_model_id integer, hasura_session json)
-  returns hasura.check_model_compatability_for_plan_return_value
+create function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer, hasura_session json)
+  returns hasura.check_model_compatibility_for_plan_return_value
   volatile
   language plpgsql as $$
 declare
@@ -363,7 +363,7 @@ begin
     (result->'removed_activity_types')::json,
     (result->'modified_activity_types')::json
   into _removed, _modified
-  from hasura.check_model_compatability(_old_model_id, _new_model_id, hasura_session);
+  from hasura.check_model_compatibility(_old_model_id, _new_model_id, hasura_session);
 
   -- Identify problematic activity_directives
   with
@@ -399,7 +399,7 @@ begin
       'removed_activity_types', _removed,
       'modified_activity_types', _modified,
       'impacted_directives', coalesce(_problematic, '[]'::json))
-    )::hasura.check_model_compatability_for_plan_return_value;
+    )::hasura.check_model_compatibility_for_plan_return_value;
 end
 $$;
 

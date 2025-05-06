@@ -69,21 +69,21 @@
     - role: aerie_admin
     - role: user
 - function:
-    name: check_model_compatability
+    name: check_model_compatibility
     schema: hasura
   configuration:
     custom_root_fields:
-      function: check_model_compatability
+      function: check_model_compatibility
     session_argument: hasura_session
   permissions:
     - role: aerie_admin
     - role: user
 - function:
-    name: check_model_compatability_for_plan
+    name: check_model_compatibility_for_plan
     schema: hasura
   configuration:
     custom_root_fields:
-      function: check_model_compatability_for_plan
+      function: check_model_compatibility_for_plan
     session_argument: hasura_session
   permissions:
     - role: aerie_admin
