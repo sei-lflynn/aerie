@@ -188,5 +188,8 @@ $$;
 comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer) is e''
   'Restore a plan to its state described in the given snapshot.';
 
+-- Drop model_id column from simulation_dataset
+alter table merlin.simulation_dataset
+  drop column model_id;
 
 call migrations.mark_migration_rolled_back('18');

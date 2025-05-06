@@ -1,3 +1,4 @@
+-- Modify plan snapshot columns and functions
 alter table merlin.plan_snapshot
 add column model_id integer references merlin.mission_model on delete set null default null;
 
@@ -203,6 +204,23 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - The tags on those activities'
   '  - When the snapshot was taken'
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
+
+
+-- Modify simulation_dataset to include model_id
+alter table merlin.simulation_dataset
+  add column model_id integer references merlin.mission_model default null;
+
+comment on column merlin.simulation_dataset.model_id is e''
+  'The model id used for this simulation.';
+
+-- Backfill the model_id column for existing simulation_datasets with the current model_id for the snapshot's plan
+update merlin.simulation_dataset
+set model_id = (
+  select merlin.plan.model_id
+  from merlin.simulation
+         join merlin.plan on simulation.plan_id = plan.id
+  where simulation.id = simulation_dataset.simulation_id
+);
 
 
 -- Add plan migration functions
