@@ -17,6 +17,8 @@ declare
   _requester_username  text;
   _function_permission permissions.permission;
   _old_model_id        integer;
+  _old_model_name      text;
+  _new_model_name      text;
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
   _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
@@ -46,14 +48,18 @@ begin
   -- Get the old model ID associated with the plan
   select model_id into _old_model_id from merlin.plan where id = _plan_id;
 
+  -- Get model names
+  select name into _old_model_name from merlin.mission_model where id = _old_model_id;
+  select name into _new_model_name from merlin.mission_model where id = _new_model_id;
+
   -- Create snapshot before migration
   perform merlin.create_snapshot(_plan_id,
-                                 'Migration from model ' || _old_model_id ||
-                                 ' to model ' || _new_model_id ||
+                                 'Migration from model ' || _old_model_name || ' (id ' ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
                                  ' on ' || NOW(),
-                                 'Automatic snapshot before attempting migration from model id ' || _old_model_id ||
-                                 ' to model id ' || _new_model_id ||
-                                 ' on ' || NOW(),
+                                 'Automatic snapshot before migrating from model ' || _old_model_name || ' (id ' ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
+                                 ') on ' || NOW(),
                                  _requester_username);
 
   -- Perform model migration

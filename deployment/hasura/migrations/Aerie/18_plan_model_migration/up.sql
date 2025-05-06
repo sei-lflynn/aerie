@@ -1,6 +1,9 @@
 alter table merlin.plan_snapshot
 add column model_id integer references merlin.mission_model on delete set null default null;
 
+comment on column merlin.plan_snapshot.model_id is e''
+  'The model that this plan was using at the time the snapshot was taken.';
+
 -- Backfill the model_id column for existing snapshots with the current model_id for the snapshot's plan
 update merlin.plan_snapshot snap
 set model_id = plan.model_id
@@ -9,7 +12,7 @@ where plan.id = snap.plan_id;
 
 
 -- Alter snapshot functions
-drop function merlin.create_snapshot();
+drop function merlin.create_snapshot(_plan_id integer);
 -- Captures the state of a plan and all of its activities
 create function merlin.create_snapshot(_plan_id integer)
   returns integer
@@ -222,6 +225,8 @@ declare
   _requester_username  text;
   _function_permission permissions.permission;
   _old_model_id        integer;
+  _old_model_name      text;
+  _new_model_name      text;
 begin
   _requester_username := (hasura_session ->> 'x-hasura-user-id');
   _function_permission := permissions.get_function_permissions('migrate_plan_to_model', hasura_session);
@@ -251,14 +256,18 @@ begin
   -- Get the old model ID associated with the plan
   select model_id into _old_model_id from merlin.plan where id = _plan_id;
 
+  -- Get model names
+  select name into _old_model_name from merlin.mission_model where id = _old_model_id;
+  select name into _new_model_name from merlin.mission_model where id = _new_model_id;
+
   -- Create snapshot before migration
   perform merlin.create_snapshot(_plan_id,
-                                 'Migration from model ' || _old_model_id ||
-                                 ' to model ' || _new_model_id ||
+                                 'Migration from model ' || _old_model_name || ' (id ' ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
                                  ' on ' || NOW(),
-                                 'Automatic snapshot before attempting migration from model id ' || _old_model_id ||
-                                 ' to model id ' || _new_model_id ||
-                                 ' on ' || NOW(),
+                                 'Automatic snapshot before migrating from model ' || _old_model_name || ' (id ' ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
+                                 ') on ' || NOW(),
                                  _requester_username);
 
   -- Perform model migration

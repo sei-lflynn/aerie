@@ -25,8 +25,7 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
       end if;
     end if;
     select model_id from merlin.plan_snapshot where snapshot_id = _snapshot_id into _model_id;
-    select name from merlin.mission_model where id = _model_id into _model_name;
-		if _model_name is null then
+    if exists(select from merlin.mission_model m where m.id = _model_id) then
       raise exception 'Cannot Restore: Model with ID % does not exist.', _model_id;
     end if;
 
