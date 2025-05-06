@@ -280,7 +280,7 @@ create table hasura.check_model_compatability_return_value(result json);
 /*
 * This function checks whether two models are compatible. It returns a json object containing:
 *     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * altered_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
+*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
 *            new parameter schemas for this activity type
 */
 create function hasura.check_model_compatability(_old_model_id integer, _new_model_id integer, hasura_session json)
@@ -289,7 +289,7 @@ create function hasura.check_model_compatability(_old_model_id integer, _new_mod
   language plpgsql as $$
 declare
   _removed_activity_types json;
-  _altered_activity_types json;
+  _modified_activity_types json;
 
 begin
 
@@ -306,7 +306,7 @@ begin
                                                         where new_at.name = old_at.name
                                                           and new_at.model_id = _new_model_id)), '[]'::json);
 
-  _altered_activity_types := coalesce((select json_object_agg(types.n, types.t)
+  _modified_activity_types := coalesce((select json_object_agg(types.n, types.t)
                                        from (select type.name as n,
                                                     json_build_object('old_parameter_schema', old_params,
                                                                       'new_parameter_schema', new_params) as t
@@ -324,7 +324,7 @@ begin
 
   return row (json_build_object(
       'removed_activity_types', _removed_activity_types,
-      'altered_activity_types', _altered_activity_types
+      'modified_activity_types', _modified_activity_types
               ))::hasura.check_model_compatability_return_value;
 end
 $$;
@@ -335,7 +335,7 @@ create table hasura.check_model_compatability_for_plan_return_value(result json)
 /*
 * This function checks whether a plan is compatible with a given model. It returns a json object containing:
 *     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * altered_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
+*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
 *            new parameter schemas for this activity type
 *     * impacted_directives, containing a list of the directives in the plan that fall into one of the two above categories
 */
@@ -345,7 +345,7 @@ create function hasura.check_model_compatability_for_plan(_plan_id integer, _new
   language plpgsql as $$
 declare
   _removed json;
-  _altered json;
+  _modified json;
   _old_model_id integer;
   _problematic json;
 begin
@@ -361,8 +361,8 @@ begin
   -- Get compatibility check result
   select
     (result->'removed_activity_types')::json,
-    (result->'altered_activity_types')::json
-  into _removed, _altered
+    (result->'modified_activity_types')::json
+  into _removed, _modified
   from hasura.check_model_compatability(_old_model_id, _new_model_id, hasura_session);
 
   -- Identify problematic activity_directives
@@ -372,7 +372,7 @@ begin
     ),
     altered_names as (
       select key as name
-      from json_each(_altered)
+      from json_each(_modified)
     ),
     problematic as (
       select to_json(ad) as activity_directive, 'removed' as issue
@@ -397,8 +397,8 @@ begin
   -- and complains.
   return row(json_build_object(
       'removed_activity_types', _removed,
-      'altered_activity_types', _altered,
-      'problematic_directives', coalesce(_problematic, '[]'::json))
+      'modified_activity_types', _modified,
+      'impacted_directives', coalesce(_problematic, '[]'::json))
     )::hasura.check_model_compatability_for_plan_return_value;
 end
 $$;
