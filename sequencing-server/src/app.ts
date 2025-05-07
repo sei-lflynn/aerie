@@ -1,5 +1,6 @@
 import bodyParser from 'body-parser';
 import DataLoader from 'dataloader';
+import { createHash } from 'crypto';
 import express, { Application, NextFunction, Request, Response } from 'express';
 import { GraphQLClient } from 'graphql-request';
 import fs from 'node:fs';
@@ -35,6 +36,7 @@ import type { ChannelDictionary, CommandDictionary, ParameterDictionary } from '
 import { sequenceTemplateBatchLoader } from './lib/batchLoaders/sequenceTemplateBatchLoader.js';
 import { sequenceFilterBatchLoader } from './lib/batchLoaders/sequenceFilterBatchLoader.js';
 import { writeFile } from './utils/file.js';
+import { randomBytes } from 'node:crypto';
 
 const logger = getLogger('app');
 const PORT: number = parseInt(getEnv().PORT, 10) ?? 27184;
@@ -224,10 +226,9 @@ app.post('/put-dictionary', async (req, res, next) => {
     const dictionaryPath = await processDictionary(parsedDictionary, dictionaryType as DictionaryType);
     let commandDictionaryFilePath = undefined;
 
-    if (persistDictionaryToFilesystem) {
-      // TODO: We'll eventually need to be able to handle dynamic filetypes, right now those aren't passed through in the Hasura action.
+    if (persistDictionaryToFilesystem && dictionaryType === DictionaryType.COMMAND) {
       commandDictionaryFilePath = await writeFile(
-        `command.${parsedDictionary.header.version}.xml`,
+        `${randomBytes(20).toString('hex')}`,
         parsedDictionary.header.mission_name.toLowerCase(),
         dictionary,
       );
