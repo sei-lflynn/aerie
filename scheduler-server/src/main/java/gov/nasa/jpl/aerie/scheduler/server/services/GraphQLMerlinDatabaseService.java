@@ -1316,7 +1316,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
   }
 
   private List<ExternalEvent> parseExternalEvents(final JsonArray eventsJson, final Instant horizonStart)
-  throws InvalidJsonException, InvalidEntityException
+  throws InvalidEntityException
   {
     final var result = new ArrayList<ExternalEvent>();
     for (final var eventJson : eventsJson) {
@@ -1326,13 +1326,17 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
       );
       final var end = start.plus(Duration.fromString(e.getString("duration")));
 
-      // TODO: all of the properties of eventJson are strings, except attributes. Including things like source_range, etc.,
-      //    that should be objects...find a better way to handle this
-      final var eventAttributes = SchedulerParsers.parseJson(e.getJsonObject("attributes").toString(), new SerializedValueJsonParser()).asMap().get();
-      // TODO: convert eventAttributes to a Map<String, SerializedValue>?
+      final var eventAttributes = new SerializedValueJsonParser()
+          .parse(e.getJsonObject("attributes"))
+          .getSuccessOrThrow(reason -> new InvalidEntityException(List.of(reason)))
+          .asMap()
+          .get();
 
-      final var sourceAttributes = SchedulerParsers
-          .parseJson(e.getJsonObject("external_source").getJsonObject("attributes").toString(), new SerializedValueJsonParser()).asMap().get();
+      final var sourceAttributes = new SerializedValueJsonParser()
+          .parse(e.getJsonObject("external_source").getJsonObject("attributes"))
+          .getSuccessOrThrow(reason -> new InvalidEntityException(List.of(reason)))
+          .asMap()
+          .get();
 
       result.add(new ExternalEvent(
           e.getString("event_key"),

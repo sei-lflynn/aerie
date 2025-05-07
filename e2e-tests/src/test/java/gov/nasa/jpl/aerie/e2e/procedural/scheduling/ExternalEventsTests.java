@@ -100,7 +100,6 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
 
   void uploadExternalSources() throws IOException {
     try (final var gateway = new GatewayRequests(playwright)) {
-      // TODO: fix derivation groups
       gateway.uploadExternalSource("scheduling_source_A.json", DERIVATION_GROUP);
       gateway.uploadExternalSource("scheduling_source_B.json", ADDITIONAL_DERIVATION_GROUP);
     }
@@ -109,7 +108,6 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
   @BeforeEach
   void localBeforeEach() throws IOException {
     // Upload some External Events
-    // TODO: invoke instead the gateway endpoint, use a file
     uploadExternalSourceEventTypes();
     uploadExternalSources();
     hasura.insertPlanDerivationGroupAssociation(planId, DERIVATION_GROUP);
