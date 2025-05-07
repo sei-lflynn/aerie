@@ -1150,7 +1150,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
   throws MerlinServiceException, IOException, InvalidEntityException
   {
     final var derivationGroupsRequest = """
-        query DerivationGroupsForPlan($planId: int) {
+        query DerivationGroupsForPlan($planId: Int!) {
           plan_derivation_group(where: {plan_id: {_eq: $planId}}) {
             derivation_group_name
           }
@@ -1171,7 +1171,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     ).build()).build();
 
     final var eventsRequest = """
-        query DerivedEventsForPlan($derivationGroups: String[]) {
+        query DerivedEventsForPlan($derivationGroups: String[]!) {
           derived_events(where: {derivation_group_name: {_in: $derivationGroups}}) {
             attributes
             source_key
