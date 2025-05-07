@@ -20,6 +20,11 @@ export type ConsoleOutput = {
   warn: string[];
 };
 
+export type ActionConfig = {
+  ACTION_FILE_STORE: string;
+  SEQUENCING_FILE_STORE: string;
+};
+
 export type ActionTask = {
   actionJS: string;
   parameters: Record<string, any>;

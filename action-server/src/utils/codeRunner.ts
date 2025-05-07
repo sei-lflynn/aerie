@@ -1,8 +1,9 @@
 import * as vm from "node:vm";
-import type { ActionResponse } from "../type/types";
+import type { ActionConfig, ActionResponse } from "../type/types";
 import { ActionsAPI } from "@nasa-jpl/aerie-actions";
 import { PoolClient } from "pg";
 import { createLogger, format, transports } from "winston";
+import { configuration } from "../config";
 
 // todo put this inside a more limited closure scope or it will get reused...
 // const logBuffer: string[] = [];
@@ -13,12 +14,12 @@ function injectLogger(oldConsole: any, logBuffer: string[]) {
   const logger = createLogger({
     level: "debug", // todo allow user to set log level
     format: format.combine(
-        format.timestamp(),
-        format.printf(({ level, message, timestamp }) => {
-          const logLine = `${timestamp} [${level.toUpperCase()}] ${message}`;
-          logBuffer.push(logLine);
-          return logLine;
-        })
+      format.timestamp(),
+      format.printf(({ level, message, timestamp }) => {
+        const logLine = `${timestamp} [${level.toUpperCase()}] ${message}`;
+        logBuffer.push(logLine);
+        return logLine;
+      }),
     ),
     // todo log to console if log level is debug
     transports: [new transports.Console()], // optional, for debugging
@@ -30,8 +31,8 @@ function injectLogger(oldConsole: any, logBuffer: string[]) {
     debug: (...args: any[]) => logger.debug(args.join(" ")),
     info: (...args: any[]) => logger.info(args.join(" ")),
     warn: (...args: any[]) => logger.warn(args.join(" ")),
-    error: (...args: any[]) => logger.error(args.join(" "))
-  }
+    error: (...args: any[]) => logger.error(args.join(" ")),
+  };
 }
 
 function getGlobals() {
@@ -42,6 +43,8 @@ function getGlobals() {
   // todo: pass env variables from the parent process?
   return aerieGlobal;
 }
+
+const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE } = configuration();
 
 export const jsExecute = async (
   code: string,
@@ -63,7 +66,8 @@ export const jsExecute = async (
   try {
     vm.runInContext(code, context);
     // todo: main runs outside of VM - is that OK?
-    const actionsAPI = new ActionsAPI(client, workspaceId);
+    const actionConfig: ActionConfig = { ACTION_FILE_STORE: ACTION_LOCAL_STORE, SEQUENCING_FILE_STORE: SEQUENCING_LOCAL_STORE };
+    const actionsAPI = new ActionsAPI(client, workspaceId, actionConfig);
     const results = await context.main(parameters, settings, actionsAPI);
     return { results, console: logBuffer, errors: null };
   } catch (err: any) {
@@ -75,9 +79,9 @@ export const jsExecute = async (
       errorResponse = err;
     }
     // also push errors into run logs - useful to have them there
-    if(errorResponse.message) aerieGlobal.console.error(errorResponse.message);
-    if(errorResponse.stack) aerieGlobal.console.error(errorResponse.stack);
-    if(errorResponse.cause) aerieGlobal.console.error(errorResponse.cause);
+    if (errorResponse.message) aerieGlobal.console.error(errorResponse.message);
+    if (errorResponse.stack) aerieGlobal.console.error(errorResponse.stack);
+    if (errorResponse.cause) aerieGlobal.console.error(errorResponse.cause);
 
     return Promise.resolve({
       results: null,
