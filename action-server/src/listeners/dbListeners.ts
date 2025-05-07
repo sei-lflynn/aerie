@@ -81,14 +81,13 @@ async function runAction(payload: ActionRunInsertedPayload) {
     })) satisfies ActionResponse;
   } catch (error: any) {
     if (error?.name === "AbortError") {
-      // todo: verify that this will only happen on deliberate cancel
       logger.info(`Action run ${actionRunId} has been canceled`);
     } else {
       logger.error("Error running task:", error);
-      taskError = { message: error.message, stack: error.stack };
-      logger.error(JSON.stringify(taskError));
       logger.error(`Run is ${JSON.stringify(run || "")}`);
     }
+    taskError = { message: error.message, stack: error.stack };
+    logger.error(JSON.stringify(taskError));
   }
 
   const duration = Math.round(performance.now() - start);
