@@ -104,7 +104,7 @@ public interface MerlinDatabaseService {
     throws MerlinServiceException, IOException;
 
     Map<String, List<ExternalEvent>> getExternalEvents(final PlanId planId, final Instant horizonStart)
-            throws MerlinServiceException, IOException, InvalidJsonException, InvalidEntityException;
+            throws MerlinServiceException, IOException, InvalidEntityException;
 
     /**
      * Gets resource types associated to a plan, those coming from the mission model as well as those coming from external dataset resources

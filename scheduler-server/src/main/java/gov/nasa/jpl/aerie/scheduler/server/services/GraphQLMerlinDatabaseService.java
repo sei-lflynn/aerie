@@ -1147,24 +1147,32 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
   @Override
   public Map<String, List<ExternalEvent>> getExternalEvents(final PlanId planId, final Instant horizonStart)
-  throws MerlinServiceException, IOException, InvalidJsonException, InvalidEntityException
+  throws MerlinServiceException, IOException, InvalidEntityException
   {
     final var derivationGroupsRequest = """
-        query DerivationGroupsForPlan {
-          plan_derivation_group(where: {plan_id: {_eq: %d}}) {
+        query DerivationGroupsForPlan($planId: int) {
+          plan_derivation_group(where: {plan_id: {_eq: $planId}}) {
             derivation_group_name
           }
         }
-        """.formatted(planId.id());
-    final JsonObject derivationGroupsResponse = postRequest(derivationGroupsRequest).get();
-    final var derivationGroups = Json.createArrayBuilder(
-        derivationGroupsResponse.getJsonObject("data").getJsonArray("plan_derivation_group")
-        .stream().map($ -> $.asJsonObject().getString("derivation_group_name")).toList()
-    ).build();
+        """;
+    final JsonObject derivationGroupsResponse = postRequest(
+        derivationGroupsRequest,
+        Json.createObjectBuilder().add("planId", planId.id()).build()).get();
+    final var derivationGroups = Json
+        .createObjectBuilder()
+        .add("derivationGroups", Json.createArrayBuilder(
+            derivationGroupsResponse
+                .getJsonObject("data")
+                .getJsonArray("plan_derivation_group")
+                .stream()
+                .map($ -> $.asJsonObject().getString("derivation_group_name"))
+                .toList()
+    ).build()).build();
 
     final var eventsRequest = """
-        query DerivedEventsForPlan {
-          derived_events(where: {derivation_group_name: {_in: %s}}) {
+        query DerivedEventsForPlan($derivationGroups: String[]) {
+          derived_events(where: {derivation_group_name: {_in: $derivationGroups}}) {
             attributes
             source_key
             event_type_name
@@ -1178,8 +1186,9 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
               attributes
             }
           }
-        }""".formatted(derivationGroups); // TODO: split this into more requests?
-    final JsonObject eventsResponse = postRequest(eventsRequest).get();
+        }""";
+
+    final JsonObject eventsResponse = postRequest(eventsRequest, derivationGroups).get();
 
     final var data = eventsResponse.getJsonObject("data").getJsonArray("derived_events");
     final var unorganized =  parseExternalEvents(data, horizonStart);
