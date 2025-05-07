@@ -105,13 +105,15 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
   try {
     jsRun = await jsExecute(task.actionJS, task.parameters, task.settings, task.auth, client, task.workspaceId);
     logger.info(`[${threadId}] done executing`);
-    return jsRun;
-  } catch (e) {
-    logger.info(`[${threadId}] error while executing`);
-    throw e;
-  } finally {
     await releaseDbPoolAndClient();
     logger.info(`[${threadId}] released DB connection`);
     ActionWorkerPool.removeFromMap(task.action_run_id);
+    return jsRun;
+  } catch (e) {
+    logger.info(`[${threadId}] error while executing`);
+    await releaseDbPoolAndClient();
+    logger.info(`[${threadId}] released DB connection`);
+    ActionWorkerPool.removeFromMap(task.action_run_id);
+    throw e;
   }
 }
