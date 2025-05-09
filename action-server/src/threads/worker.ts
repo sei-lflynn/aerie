@@ -60,60 +60,76 @@ async function releaseDbPoolAndClient(): Promise<void> {
 }
 
 export async function runAction(task: ActionTask): Promise<ActionResponse> {
-  logger.info(`Worker [${threadId}] running task`);
-  logger.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);
-  logger.info(`Settings: ${JSON.stringify(task.settings, null, 2)}`);
+  return new Promise(async (resolve, reject) => {
+    logger.info(`Worker [${threadId}] running task`);
+    logger.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);
+    logger.info(`Settings: ${JSON.stringify(task.settings, null, 2)}`);
+    let aborted = false;
 
-  // Set up the message listener
-  if (task.message_port) {
-    task.message_port.on("message", async (msg) => {
-      if (msg.type === "abort") {
-        logger.info(`[${threadId}] Received abort message`);
-        try {
-          await releaseDbPoolAndClient();
-          logger.info(`[${threadId}] Async cleanup complete`);
-          task.message_port?.postMessage({ type: "cleanup_complete" });
-        } catch (err) {
-          logger.error(`[${threadId}] Error during async cleanup`, err);
+    // Set up the message listener
+    if (task.message_port) {
+      task.message_port.once("message", async (msg) => {
+        if (msg.type === "abort") {
+          logger.info(`[${threadId}] Received abort message`);
+          try {
+            await releaseDbPoolAndClient();
+            logger.info(`[${threadId}] Async cleanup complete`);
+            task.message_port?.close();
+            logger.info(`[${threadId}] Message port closed. Aborting now...`);
+            // This ensures node has flushed stdout buffer before continuing:
+            await new Promise((r) => process.stdout.write("", r));
+            ActionWorkerPool.removeFromMap(task.action_run_id);
+            const err = new Error("Aborted");
+            err.name = "AbortError";
+            aborted = true;
+            reject(err);
+          } catch (err) {
+            logger.error(`[${threadId}] Error during async cleanup`, err);
+            // This ensures node has flushed stdout buffer before continuing:
+            await new Promise((r) => process.stdout.write("", r));
+            reject(err);
+          }
         }
-      }
-    });
-  }
+      });
+    }
 
-  const client = await getDbClient();
-  logger.info(`[${threadId}] Connected to DB`);
+    const client = await getDbClient();
+    logger.info(`[${threadId}] Connected to DB`);
 
-  // update this action run in the database to show "incomplete"
-  try {
-    logger.info(`[${threadId}] Attempting to mark action run ${task.action_run_id} as incomplete`);
-    const res = await client.query(
-      `
+    // update this action run in the database to show "incomplete"
+    try {
+      logger.info(`[${threadId}] Attempting to mark action run ${task.action_run_id} as incomplete`);
+      const res = await client.query(
+        `
       UPDATE actions.action_run
       SET
         status = $1
       WHERE id = $2
         RETURNING *;
     `,
-      ["incomplete", task.action_run_id],
-    );
-    logger.info("Updated action_run:", res.rows[0]);
-  } catch (error) {
-    logger.error("Error updating status of action_run:", error);
-  }
+        ["incomplete", task.action_run_id],
+      );
+      logger.info("Updated action_run:", res.rows[0]);
+    } catch (error) {
+      logger.error("Error updating status of action_run:", error);
+    }
 
-  let jsRun: ActionResponse;
-  try {
-    jsRun = await jsExecute(task.actionJS, task.parameters, task.settings, task.auth, client, task.workspaceId);
-    logger.info(`[${threadId}] done executing`);
-    await releaseDbPoolAndClient();
-    logger.info(`[${threadId}] released DB connection`);
-    ActionWorkerPool.removeFromMap(task.action_run_id);
-    return jsRun;
-  } catch (e) {
-    logger.info(`[${threadId}] error while executing`);
-    await releaseDbPoolAndClient();
-    logger.info(`[${threadId}] released DB connection`);
-    ActionWorkerPool.removeFromMap(task.action_run_id);
-    throw e;
-  }
+    let jsRun: ActionResponse;
+    try {
+      jsRun = await jsExecute(task.actionJS, task.parameters, task.settings, task.auth, client, task.workspaceId);
+      logger.info(`[${threadId}] done executing`);
+      await releaseDbPoolAndClient();
+      logger.info(`[${threadId}] released DB connection`);
+      task.message_port?.close();
+      ActionWorkerPool.removeFromMap(task.action_run_id);
+      return jsRun;
+    } catch (e) {
+      logger.info(`[${threadId}] error while executing`);
+      await releaseDbPoolAndClient();
+      logger.info(`[${threadId}] released DB connection`);
+      task.message_port?.close();
+      ActionWorkerPool.removeFromMap(task.action_run_id);
+      reject(e);
+    }
+  });
 }

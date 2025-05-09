@@ -33,7 +33,6 @@ export type ActionTask = {
   settings: Record<string, any>;
   auth?: string;
   workspaceId: number;
-  abort_controller: AbortController;
   message_port: MessagePort | null;
 };
 

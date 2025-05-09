@@ -73,18 +73,16 @@ async function runAction(payload: ActionRunInsertedPayload) {
     run = (await ActionWorkerPool.submitTask({
       actionJS: actionJS,
       action_run_id: actionRunId,
+      message_port: null,
       parameters: parameters,
       settings: settings,
       workspaceId: workspaceId,
-      abort_controller: new AbortController(),
-      message_port: null,
     })) satisfies ActionResponse;
   } catch (error: any) {
     if (error?.name === "AbortError") {
       logger.info(`Action run ${actionRunId} has been canceled`);
     } else {
       logger.error("Error running task:", error);
-      logger.error(`Run is ${JSON.stringify(run || "")}`);
     }
     taskError = { message: error.message, stack: error.stack };
     logger.error(JSON.stringify(taskError));
