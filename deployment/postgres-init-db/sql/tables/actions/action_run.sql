@@ -79,6 +79,7 @@ begin
     select pg_notify('action_run_inserted', json_strip_nulls(row_to_json(payload))::text)
     from payload
   );
+  return null;
 end$$;
 
 create trigger notify_action_run_inserted
