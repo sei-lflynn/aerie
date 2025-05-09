@@ -94,6 +94,7 @@ begin
   perform pg_notify('action_run_cancel_requested', json_build_object(
       'action_run_id', NEW.id
   )::text);
+  return null;
 end$$;
 
 create trigger notify_action_run_cancel_requested
