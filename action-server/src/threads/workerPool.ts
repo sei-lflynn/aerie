@@ -32,6 +32,9 @@ export class ActionWorkerPool {
     console.log("Submitted new task with ID " + task.action_run_id);
 
     try {
+      // Note that transferList is for transferable types only (message ports being one)
+      // and passes those objects by reference. Once passed, the source no longer owns
+      // these types -- they're owned by the worker thread.
       return await ActionWorkerPool.piscina.run(task, {
         name: "runAction",
         transferList: [port2],
