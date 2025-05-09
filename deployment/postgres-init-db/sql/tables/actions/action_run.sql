@@ -79,7 +79,6 @@ begin
     select pg_notify('action_run_inserted', json_strip_nulls(row_to_json(payload))::text)
     from payload
   );
-  return null;
 end$$;
 
 create trigger notify_action_run_inserted
@@ -92,22 +91,17 @@ create function actions.notify_action_run_cancel_requested()
   security definer
   language plpgsql as $$
 begin
-  -- Notify if canceled is set to true
-  if NEW.canceled then
-    perform pg_notify('action_run_cancel_requested', json_build_object(
-        'action_run_id', NEW.id,
-        'canceled', NEW.canceled
-    )::text);
-  end if;
-
-  return null;
+  perform pg_notify('action_run_cancel_requested', json_build_object(
+      'action_run_id', NEW.id
+  )::text);
 end$$;
 
 create trigger notify_action_run_cancel_requested
   after update on actions.action_run
   for each row
   when (
-    NEW.canceled = true
+    (OLD.status != 'success' or OLD.status != 'failed')
+    and NEW.canceled
     and OLD.canceled is distinct from NEW.canceled
   )
 execute function actions.notify_action_run_cancel_requested();
