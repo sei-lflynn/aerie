@@ -1754,11 +1754,11 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
   {
       final var simulatedActivityRecords = simulatedActivities.entrySet().stream()
                                                               .collect(Collectors.toMap(
-                                                                  e -> e.getKey().id(),
+                                                                  Map.Entry::getKey,
                                                                   e -> simulatedActivityToRecord(e.getValue())));
       final var allActivityRecords = unfinishedActivities.entrySet().stream()
                                                          .collect(Collectors.toMap(
-                                                             e -> e.getKey().id(),
+                                                             Map.Entry::getKey,
                                                              e -> unfinishedActivityToRecord(e.getValue())));
       allActivityRecords.putAll(simulatedActivityRecords);
       postSpans(
@@ -1774,7 +1774,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
   public void updateSimulatedActivityParentsAction(
     final DatasetId datasetId,
-    final Map<Long, SpanRecord> simulatedActivities
+    final Map<ActivityInstanceId, SpanRecord> simulatedActivities
 ) throws MerlinServiceException, IOException
   {
   final var req = """
@@ -1793,7 +1793,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     updates.add(Json.createObjectBuilder()
                    .add("where", Json.createObjectBuilder()
                                      .add("dataset_id",Json.createObjectBuilder().add("_eq", datasetId.id()).build())
-                                     .add("span_id", Json.createObjectBuilder().add("_eq", id).build()))
+                                     .add("span_id", Json.createObjectBuilder().add("_eq", id.id()).build()))
                    .add("_set", Json.createObjectBuilder().add("parent_id", activity.parentId().get()))
                    .build());
     updateCounter++;
@@ -1845,7 +1845,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
   }
 
   public void postSpans(final DatasetId datasetId,
-                                       final Map<Long, SpanRecord> spans,
+                                       final Map<ActivityInstanceId, SpanRecord> spans,
                                        final Instant simulationStart,
                                        final Map<ActivityDirectiveId, ActivityDirectiveId> uploadIdMap
   ) throws MerlinServiceException, IOException
@@ -1866,7 +1866,7 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
       final var startTime = graphQLIntervalFromDuration(simulationStart, act.start);
       spansJson.add(Json.createObjectBuilder()
-                        .add("span_id",id)
+                        .add("span_id",id.id())
                         .add("dataset_id", datasetId.id())
                         .add("start_offset", startTime.toString())
                         .add("duration", act.duration.isPresent() ? graphQLIntervalFromDuration(act.duration().get()).toString() : "null")
