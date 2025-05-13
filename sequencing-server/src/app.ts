@@ -1,6 +1,5 @@
 import bodyParser from 'body-parser';
 import DataLoader from 'dataloader';
-import { createHash } from 'crypto';
 import express, { Application, NextFunction, Request, Response } from 'express';
 import { GraphQLClient } from 'graphql-request';
 import fs from 'node:fs';
@@ -209,19 +208,10 @@ app.post('/put-dictionary', async (req, res, next) => {
     let parsedDictionary: CommandDictionary | ParameterDictionary | ChannelDictionary | undefined;
     let db_table_name = '';
     let db_value: any[] = [];
-    let columns = 'dictionary_path, mission, version, parsed_json';
-    let conflict = 'dictionary_path = $1, parsed_json = $4';
-    let values = '$1, $2, $3, $4';
-    let returning = 'id, dictionary_path, mission, version, parsed_json, created_at';
 
     if (dictionaryType == DictionaryType.COMMAND && parsedDictionaries.commandDictionary) {
       db_table_name = 'command_dictionary';
       parsedDictionary = parsedDictionaries.commandDictionary as CommandDictionary;
-      // Only command dictionaries have a command_dictionary_file_path so add the necessary column, value, set, and return statement.
-      columns = `${columns}, command_dictionary_file_path`;
-      conflict = `${conflict}, command_dictionary_file_path = $5`;
-      values = `${values}, $5`;
-      returning = `${returning}, command_dictionary_file_path`;
     } else if (dictionaryType == DictionaryType.CHANNEL && parsedDictionaries.channelDictionary) {
       db_table_name = 'channel_dictionary';
       parsedDictionary = parsedDictionaries.channelDictionary as ChannelDictionary;
@@ -234,10 +224,10 @@ app.post('/put-dictionary', async (req, res, next) => {
     }
 
     const dictionaryPath = await processDictionary(parsedDictionary, dictionaryType as DictionaryType);
-    let commandDictionaryFilePath = undefined;
+    let dictionaryFilePath = undefined;
 
-    if (persistDictionaryToFilesystem && dictionaryType === DictionaryType.COMMAND) {
-      commandDictionaryFilePath = await writeFile(
+    if (persistDictionaryToFilesystem) {
+      dictionaryFilePath = await writeFile(
         `${randomBytes(20).toString('hex')}`,
         parsedDictionary.header.mission_name.toLowerCase(),
         dictionary,
@@ -250,23 +240,19 @@ app.post('/put-dictionary', async (req, res, next) => {
       parsedDictionary.header.mission_name,
       parsedDictionary.header.version,
       parsedDictionary,
+      dictionaryFilePath,
     ];
 
-    // If we processed a command dictionary add the file path
-    if (dictionaryType === DictionaryType.COMMAND) {
-      db_value.push(commandDictionaryFilePath);
-    }
-
     const sqlExpression = `
-      insert into sequencing.${db_table_name} (${columns})
-      values (${values})
+      insert into sequencing.${db_table_name} (dictionary_path, mission, version, parsed_json, dictionary_file_path)
+      values ($1, $2, $3, $4, $5)
       on conflict (mission, version) do update
-        set ${conflict}
-      returning ${returning};
+        set dictionary_path = $1, parsed_json = $4, dictionary_file_path = $5
+      returning id, dictionary_path, mission, version, parsed_json, created_at, dictionary_file_path;
     `;
     const { rows } = await db.query(sqlExpression, db_value);
     if (rows.length < 1) {
-      throw new Error(`POST /dictionary: No command dictionary was updated in the database`);
+      throw new Error(`POST /dictionary: No dictionary was updated in the database`);
     }
     json = { ...json, ...{ [dictionaryType.toLowerCase()]: rows[0] } };
   }

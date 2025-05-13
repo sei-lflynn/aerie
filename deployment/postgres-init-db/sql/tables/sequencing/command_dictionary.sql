@@ -2,7 +2,7 @@ create table sequencing.command_dictionary (
   id integer generated always as identity,
 
   dictionary_path text not null,
-  command_dictionary_file_path text default null,
+  dictionary_file_path text default null,
   mission text not null,
   version text not null,
   parsed_json jsonb not null default '{}', -- Todo: remove and create a endpoint for the frontend to use the path
@@ -22,7 +22,7 @@ comment on column sequencing.command_dictionary.id is e''
   'The synthetic identifier for this command dictionary.';
 comment on column sequencing.command_dictionary.dictionary_path is e''
   'The location of command dictionary types (.ts) on the filesystem';
-comment on column sequencing.command_dictionary.command_dictionary_file_path is e''
+comment on column sequencing.command_dictionary.dictionary_file_path is e''
   'The location of the command dictionary file on the filesystem.';
 comment on column sequencing.command_dictionary.mission is e''
   'A human-meaningful identifier for the mission described by the command dictionary';
