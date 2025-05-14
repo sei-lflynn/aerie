@@ -59,4 +59,4 @@ create trigger notify_action_run_cancel_requested
     )
 execute function actions.notify_action_run_cancel_requested();
 
-call migrations.mark_migration_applied('18');
+call migrations.mark_migration_applied('19');
