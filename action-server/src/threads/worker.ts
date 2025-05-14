@@ -59,8 +59,6 @@ async function releaseDbPoolAndClient(): Promise<void> {
   }
 }
 
-
-
 export async function runAction(task: ActionTask): Promise<ActionResponse> {
   logger.info(`Worker [${threadId}] running task`);
   logger.info(`Parameters: ${JSON.stringify(task.parameters, null, 2)}`);
@@ -86,9 +84,8 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
     });
 
     // Send "I'm alive" message back to main thread before starting major work
-    task.message_port.postMessage({ type: "started"});
+    task.message_port.postMessage({ type: "started" });
   }
-
 
   const client = await getDbClient();
   logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Connected to DB`);
@@ -97,14 +94,14 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
   try {
     logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Attempting to mark action run as incomplete`);
     const res = await client.query(
-        `
+      `
       UPDATE actions.action_run
       SET
         status = $1
       WHERE id = $2
         RETURNING *;
     `,
-        ["incomplete", task.action_run_id],
+      ["incomplete", task.action_run_id],
     );
     logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Updated action_run as incomplete`);
   } catch (error) {
@@ -118,7 +115,7 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
     await releaseDbPoolAndClient();
     logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] released DB connection`);
     // Send "I'm finished" back to main thread:
-    task.message_port?.postMessage({ type: "finished"});
+    task.message_port?.postMessage({ type: "finished" });
     task.message_port?.close();
     return jsRun;
   } catch (e) {
@@ -126,7 +123,7 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
     await releaseDbPoolAndClient();
     logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Released DB connection`);
     // Send "I'm finished" back to main thread:
-    task.message_port?.postMessage({ type: "finished"});
+    task.message_port?.postMessage({ type: "finished" });
     task.message_port?.close();
     throw e;
   }

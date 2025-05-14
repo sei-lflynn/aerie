@@ -11,7 +11,6 @@ export class ActionWorkerPool {
   public static abortControllerForActionRun: Map<string, AbortController> = new Map();
   public static runningActions: Set<string> = new Set<string>();
 
-
   static setup() {
     this.piscina = new Piscina({
       filename: path.resolve(__dirname, "worker.js"),
