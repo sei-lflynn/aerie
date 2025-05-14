@@ -8,6 +8,9 @@ import { MessageChannel, MessagePort, threadId } from "worker_threads";
 export class ActionWorkerPool {
   private static piscina: Piscina<any, any>;
   public static messagePortsForActionRun: Map<string, MessagePort> = new Map();
+  public static abortControllerForActionRun: Map<string, AbortController> = new Map();
+  public static runningActions: Set<string> = new Set<string>();
+
 
   static setup() {
     this.piscina = new Piscina({
@@ -28,6 +31,9 @@ export class ActionWorkerPool {
     task.message_port = port2;
 
     this.messagePortsForActionRun.set(task.action_run_id, port1);
+    this.abortControllerForActionRun.set(task.action_run_id, new AbortController());
+
+    this.setupMessagePortCallbacks(task.action_run_id);
 
     console.log("Submitted new task with ID " + task.action_run_id);
 
@@ -37,30 +43,74 @@ export class ActionWorkerPool {
       // these types -- they're owned by the worker thread.
       return await ActionWorkerPool.piscina.run(task, {
         name: "runAction",
+        signal: this.abortControllerForActionRun.get(task.action_run_id)?.signal,
         transferList: [port2],
       });
     } catch (error) {
-      logger.warn("Task did not complete:", error);
+      logger.warn(`Action run ${task.action_run_id} did not complete:`, error);
       throw error;
     }
   }
 
-  static cancelTask(action_run_id: string) {
-    logger.info(`Attempting to cancel task ${action_run_id}`);
+  static setupMessagePortCallbacks(action_run_id: string) {
     const port = this.messagePortsForActionRun.get(action_run_id);
     if (port) {
-      logger.info(`Posting abort message for task ${action_run_id}`);
-      port.postMessage({ type: "abort" });
-    } else {
-      logger.warn(`No message port found for task ${action_run_id}`);
+      port.on("message", async (msg) => {
+        if (msg.type === "cleanup_complete") {
+          logger.info(`[${threadId}] Received cleanup_complete message for action_run ${action_run_id}, aborting...`);
+          this.abortControllerForActionRun.get(action_run_id)?.abort();
+          this.removeFromMap(action_run_id);
+        } else if (msg.type === "started") {
+          logger.info(`[${threadId}] Worker for action_run ${action_run_id} has started...`);
+          this.runningActions.add(action_run_id);
+        } else if (msg.type === "finished") {
+          logger.info(`[${threadId}] Worker for action_run ${action_run_id} has finished...`);
+          this.removeFromMap(action_run_id);
+        }
+      });
     }
   }
 
+  static cancelTask(action_run_id: string) {
+    // kill the task and delete from the abortControllers data structure
+    logger.info(`Attempting to cancel action run ${action_run_id}`);
+
+    // Case 1. Worker has not yet started -> use abortcontroller to remove from piscina task queue
+    if (!this.runningActions.has(action_run_id)) {
+      logger.info(`Action run ${action_run_id} has not yet started, removing it from the queue`);
+      this.abortControllerForActionRun.get(action_run_id)?.abort();
+      this.removeFromMap(action_run_id);
+    }
+
+    // Case 2. Worker has started, and is not completed -> ask it to close its database connection
+    if (this.runningActions.has(action_run_id)) {
+      const port = this.messagePortsForActionRun.get(action_run_id);
+      if (port) {
+        logger.info(`Posting abort message for task ${action_run_id}`);
+        port.postMessage({ type: "abort" });
+      } else {
+        logger.error(`No message port found for task ${action_run_id}, this will result in a memory leak`);
+      }
+    } else {
+      logger.warn(`No abort controller found for task ${action_run_id}`);
+    }
+
+    // Case 3. Worker has completed, this should only happen if the user presses the button prior to the UI updating
+    // with the task being completed. This case should be handled via setupMessagePortCallbacks.
+  }
+
   static removeFromMap(action_run_id: string) {
+    logger.info(`Removing action run ${action_run_id} from maps`);
+    if (this.abortControllerForActionRun.has(action_run_id)) {
+      this.abortControllerForActionRun.delete(action_run_id);
+    }
     if (this.messagePortsForActionRun.has(action_run_id)) {
       // Close this port, the matching port in the worker is closed in worker.ts
       this.messagePortsForActionRun.get(action_run_id)?.close();
       this.messagePortsForActionRun.delete(action_run_id);
+    }
+    if (this.runningActions.has(action_run_id)) {
+      this.runningActions.delete(action_run_id);
     }
   }
 }
