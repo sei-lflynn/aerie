@@ -132,4 +132,4 @@ begin
 end
 $$;
 
-call migrations.mark_migration_applied('18');
+call migrations.mark_migration_applied('19');

@@ -114,4 +114,4 @@ drop constraint activity_directive_source_goal_id_exists,
 
   drop column source_scheduling_goal_invocation_id;
 
-call migrations.mark_migration_rolled_back('18');
+call migrations.mark_migration_rolled_back('19');
