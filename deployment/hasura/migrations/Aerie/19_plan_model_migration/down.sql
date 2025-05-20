@@ -117,6 +117,7 @@ begin
 end
 $$;
 
+drop procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer);
 create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
   language plpgsql as $$
 declare
