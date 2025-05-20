@@ -80,6 +80,41 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - When the snapshot was taken'
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
+drop function merlin.create_merge_request();
+create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
+  returns integer
+  language plpgsql as $$
+declare
+  merge_base_snapshot_id integer;
+  validate_planIds integer;
+  supplying_snapshot_id integer;
+  merge_request_id integer;
+begin
+  if plan_id_receiving = plan_id_supplying then
+    raise exception 'Cannot create a merge request between a plan and itself.';
+  end if;
+  select id from merlin.plan where plan.id = plan_id_receiving into validate_planIds;
+  if validate_planIds is null then
+    raise exception 'Plan receiving changes (Plan %) does not exist.', plan_id_receiving;
+  end if;
+  select id from merlin.plan where plan.id = plan_id_supplying into validate_planIds;
+  if validate_planIds is null then
+    raise exception 'Plan supplying changes (Plan %) does not exist.', plan_id_supplying;
+  end if;
+
+  select merlin.create_snapshot(plan_id_supplying) into supplying_snapshot_id;
+
+  select merlin.get_merge_base(plan_id_receiving, supplying_snapshot_id) into merge_base_snapshot_id;
+  if merge_base_snapshot_id is null then
+    raise exception 'Cannot create merge request between unrelated plans.';
+  end if;
+
+  insert into merlin.merge_request(plan_id_receiving_changes, snapshot_id_supplying_changes, merge_base_snapshot_id, requester_username)
+  values(plan_id_receiving, supplying_snapshot_id, merge_base_snapshot_id, request_username)
+  returning id into merge_request_id;
+  return merge_request_id;
+end
+$$;
 
 create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
   language plpgsql as $$

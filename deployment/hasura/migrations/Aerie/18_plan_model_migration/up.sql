@@ -205,6 +205,50 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - When the snapshot was taken'
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
+-- Update create_merge_request function to check model IDs
+drop function merlin.create_merge_request();
+create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
+  returns integer
+  language plpgsql as $$
+declare
+  merge_base_snapshot_id integer;
+  validate_planIds integer;
+  supplying_snapshot_id integer;
+  merge_request_id integer;
+  model_id_receiving integer;
+  model_id_supplying integer;
+begin
+  if plan_id_receiving = plan_id_supplying then
+    raise exception 'Cannot create a merge request between a plan and itself.';
+  end if;
+  select id from merlin.plan where plan.id = plan_id_receiving into validate_planIds;
+  if validate_planIds is null then
+    raise exception 'Plan receiving changes (Plan %) does not exist.', plan_id_receiving;
+  end if;
+  select id from merlin.plan where plan.id = plan_id_supplying into validate_planIds;
+  if validate_planIds is null then
+    raise exception 'Plan supplying changes (Plan %) does not exist.', plan_id_supplying;
+  end if;
+
+  select merlin.create_snapshot(plan_id_supplying) into supplying_snapshot_id;
+
+  select merlin.get_merge_base(plan_id_receiving, supplying_snapshot_id) into merge_base_snapshot_id;
+  if merge_base_snapshot_id is null then
+    raise exception 'Cannot create merge request between unrelated plans.';
+  end if;
+
+  select model_id from merlin.plan where plan.id = plan_id_receiving into model_id_receiving;
+  select model_id from merlin.plan where plan.id = plan_id_supplying into model_id_supplying;
+  if model_id_receiving is distinct from model_id_supplying then
+    raise exception 'Cannot create merge request: plan supplying changes is using a different model (%) than the receiving plan (%)', model_id_supplying, model_id_receiving;
+  end if;
+
+  insert into merlin.merge_request(plan_id_receiving_changes, snapshot_id_supplying_changes, merge_base_snapshot_id, requester_username)
+  values(plan_id_receiving, supplying_snapshot_id, merge_base_snapshot_id, request_username)
+  returning id into merge_request_id;
+  return merge_request_id;
+end
+$$;
 
 -- Modify simulation_dataset to include model_id
 alter table merlin.simulation_dataset
@@ -221,7 +265,6 @@ set model_id = (
          join merlin.plan on simulation.plan_id = plan.id
   where simulation.id = simulation_dataset.simulation_id
 );
-
 
 -- Add plan migration functions
 create table hasura.migrate_plan_to_model_return_value(result text);
