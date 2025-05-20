@@ -81,7 +81,7 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - When the snapshot was taken'
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
-drop function merlin.create_merge_request();
+drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
 create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
   returns integer
   language plpgsql as $$

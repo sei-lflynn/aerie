@@ -207,7 +207,7 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
 -- Update create_merge_request function to check model IDs
-drop function merlin.create_merge_request();
+drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
 create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
   returns integer
   language plpgsql as $$
