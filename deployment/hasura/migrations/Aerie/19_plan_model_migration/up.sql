@@ -23,6 +23,7 @@ begin
 end
 $$;
 
+drop function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text);
 create function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text)
   returns integer -- snapshot id inserted into the table
   language plpgsql as $$
