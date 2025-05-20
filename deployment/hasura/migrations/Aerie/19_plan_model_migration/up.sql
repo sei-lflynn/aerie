@@ -451,7 +451,7 @@ begin
   select json_agg(json_build_object(
       'activity_directive', activity_directive,
       'issue', issue
-                  )) into _problematic
+    )) into _problematic
   from problematic;
 
   -- Build final result JSON. Note row(), if we don't include this hasura tries to cast raw json into the composite type
