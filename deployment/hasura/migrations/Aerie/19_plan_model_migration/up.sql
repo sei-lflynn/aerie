@@ -451,7 +451,7 @@ begin
   select json_agg(json_build_object(
       'activity_directive', activity_directive,
       'issue', issue
-    )) into _problematic
+                  )) into _problematic
   from problematic;
 
   -- Build final result JSON. Note row(), if we don't include this hasura tries to cast raw json into the composite type
@@ -460,7 +460,7 @@ begin
       'removed_activity_types', _removed,
       'modified_activity_types', _modified,
       'impacted_directives', coalesce(_problematic, '[]'::json))
-    )::hasura.check_model_compatibility_for_plan_return_value;
+         )::hasura.check_model_compatibility_for_plan_return_value;
 end
 $$;
 
