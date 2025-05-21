@@ -241,6 +241,9 @@ end
 $$;
 
 -- Alter set_revisions_and_initialize_dataset_on_insert
+-- drop trigger first & recreate after
+drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
+
 drop function merlin.set_revisions_and_initialize_dataset_on_insert();
 create function merlin.set_revisions_and_initialize_dataset_on_insert()
 returns trigger
@@ -272,6 +275,11 @@ begin
   new.dataset_revision = dataset_ref.revision;
 return new;
 end$$;
+
+create trigger set_revisions_and_initialize_dataset_on_insert_trigger
+  before insert on merlin.simulation_dataset
+  for each row
+execute function merlin.set_revisions_and_initialize_dataset_on_insert();
 
 -- Modify simulation_dataset to include model_id
 alter table merlin.simulation_dataset
