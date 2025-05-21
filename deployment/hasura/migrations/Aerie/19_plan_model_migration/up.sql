@@ -275,7 +275,12 @@ end$$;
 
 -- Modify simulation_dataset to include model_id
 alter table merlin.simulation_dataset
-  add column model_id integer references merlin.mission_model default null;
+  add column model_id integer null,
+  add constraint simulation_dataset_references_model
+    foreign key (model_id)
+      references merlin.mission_model
+      on update cascade
+      on delete set null;
 
 comment on column merlin.simulation_dataset.model_id is e''
   'The model id used for this simulation.';

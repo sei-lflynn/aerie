@@ -48,6 +48,11 @@ create table merlin.simulation_dataset (
     foreign key (requested_by) references permissions.users
     on update cascade
     on delete set null,
+  constraint simulation_dataset_references_model
+    foreign key (model_id)
+    references merlin.mission_model
+    on update cascade
+    on delete set null,
   constraint start_before_end
     check (simulation_start_time <= simulation_end_time)
 );
