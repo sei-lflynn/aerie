@@ -509,3 +509,4 @@ begin
 end
 $$;
 
+call migrations.mark_migration_applied('19');
