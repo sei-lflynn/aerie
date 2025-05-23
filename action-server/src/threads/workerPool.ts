@@ -30,7 +30,8 @@ export class ActionWorkerPool {
     task.message_port = port2;
 
     this.messagePortsForActionRun.set(task.action_run_id, port1);
-    this.abortControllerForActionRun.set(task.action_run_id, new AbortController());
+    const abortController = new AbortController();
+    this.abortControllerForActionRun.set(task.action_run_id, abortController);
 
     this.setupMessagePortCallbacks(task.action_run_id);
 
@@ -42,7 +43,7 @@ export class ActionWorkerPool {
       // these types -- they're owned by the worker thread.
       return await ActionWorkerPool.piscina.run(task, {
         name: "runAction",
-        signal: this.abortControllerForActionRun.get(task.action_run_id)?.signal,
+        signal: abortController.signal,
         transferList: [port2],
       });
     } catch (error) {
@@ -52,19 +53,20 @@ export class ActionWorkerPool {
   }
 
   static setupMessagePortCallbacks(action_run_id: string) {
+    // handle messages from the process, sent on the MessagePort
     const port = this.messagePortsForActionRun.get(action_run_id);
     if (port) {
       port.on("message", async (msg) => {
         if (msg.type === "cleanup_complete") {
           logger.info(`[${threadId}] Received cleanup_complete message for action_run ${action_run_id}, aborting...`);
           this.abortControllerForActionRun.get(action_run_id)?.abort();
-          this.removeFromMap(action_run_id);
+          this.removeFromMaps(action_run_id);
         } else if (msg.type === "started") {
           logger.info(`[${threadId}] Worker for action_run ${action_run_id} has started...`);
           this.runningActions.add(action_run_id);
         } else if (msg.type === "finished") {
           logger.info(`[${threadId}] Worker for action_run ${action_run_id} has finished...`);
-          this.removeFromMap(action_run_id);
+          this.removeFromMaps(action_run_id);
         }
       });
     }
@@ -77,8 +79,14 @@ export class ActionWorkerPool {
     // Case 1. Worker has not yet started -> use abortcontroller to remove from piscina task queue
     if (!this.runningActions.has(action_run_id)) {
       logger.info(`Action run ${action_run_id} has not yet started, removing it from the queue`);
-      this.abortControllerForActionRun.get(action_run_id)?.abort();
-      this.removeFromMap(action_run_id);
+      const abortController = this.abortControllerForActionRun.get(action_run_id);
+      if(abortController) {
+        abortController.abort();
+      } else {
+        logger.warn(`No abort controller found for task ${action_run_id}`);
+      }
+
+      this.removeFromMaps(action_run_id);
     }
 
     // Case 2. Worker has started, and is not completed -> ask it to close its database connection
@@ -98,7 +106,7 @@ export class ActionWorkerPool {
     // with the task being completed. This case should be handled via setupMessagePortCallbacks.
   }
 
-  static removeFromMap(action_run_id: string) {
+  static removeFromMaps(action_run_id: string) {
     logger.info(`Removing action run ${action_run_id} from maps`);
     if (this.abortControllerForActionRun.has(action_run_id)) {
       this.abortControllerForActionRun.delete(action_run_id);

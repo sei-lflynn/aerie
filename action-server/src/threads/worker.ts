@@ -72,14 +72,14 @@ export async function runAction(task: ActionTask): Promise<ActionResponse> {
         try {
           await releaseDbPoolAndClient();
           logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Async cleanup complete`);
-          task.message_port?.postMessage({ type: "cleanup_complete" });
-          task.message_port?.close();
-          logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Message port closed. Aborting now...`);
-          // This ensures node has flushed stdout buffer before continuing:
-          await new Promise((r) => process.stdout.write("", r));
         } catch (err) {
           logger.error(`[Action Run ${task.action_run_id}, Thread ${threadId}] Error during async cleanup`, err);
         }
+        task.message_port?.postMessage({ type: "cleanup_complete" });
+        task.message_port?.close();
+        logger.info(`[Action Run ${task.action_run_id}, Thread ${threadId}] Message port closed. Aborting now...`);
+        // This ensures node has flushed stdout buffer before continuing:
+        await new Promise((r) => process.stdout.write("", r));
       }
     });
 
