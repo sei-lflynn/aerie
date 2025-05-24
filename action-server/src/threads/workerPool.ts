@@ -59,7 +59,13 @@ export class ActionWorkerPool {
       port.on("message", async (msg) => {
         if (msg.type === "cleanup_complete") {
           logger.info(`[${threadId}] Received cleanup_complete message for action_run ${action_run_id}, aborting...`);
-          this.abortControllerForActionRun.get(action_run_id)?.abort();
+          const abortController = this.abortControllerForActionRun.get(action_run_id);
+          if (abortController == null) {
+            logger.error(`No abort controller found for task ${action_run_id}. This will result in a memory leak.`);
+            throw Error(`No abort controller found for task ${action_run_id}. This will result in a memory leak.`);
+          } else {
+            abortController.abort();
+          }
           this.removeFromMaps(action_run_id);
         } else if (msg.type === "started") {
           logger.info(`[${threadId}] Worker for action_run ${action_run_id} has started...`);
@@ -76,8 +82,8 @@ export class ActionWorkerPool {
     // kill the task and delete from the abortControllers data structure
     logger.info(`Attempting to cancel action run ${action_run_id}`);
 
-    // Case 1. Worker has not yet started -> use abortcontroller to remove from piscina task queue
     if (!this.runningActions.has(action_run_id)) {
+      // Case 1. Worker has not yet started -> use abortcontroller to remove from piscina task queue
       logger.info(`Action run ${action_run_id} has not yet started, removing it from the queue`);
       const abortController = this.abortControllerForActionRun.get(action_run_id);
       if(abortController) {
@@ -85,12 +91,11 @@ export class ActionWorkerPool {
       } else {
         logger.warn(`No abort controller found for task ${action_run_id}`);
       }
-
       this.removeFromMaps(action_run_id);
-    }
+      return;
 
-    // Case 2. Worker has started, and is not completed -> ask it to close its database connection
-    if (this.runningActions.has(action_run_id)) {
+    } else {
+      // Case 2. Worker has started, and is not completed -> ask it to close its database connection
       const port = this.messagePortsForActionRun.get(action_run_id);
       if (port) {
         logger.info(`Posting abort message for task ${action_run_id}`);
@@ -98,8 +103,6 @@ export class ActionWorkerPool {
       } else {
         logger.error(`No message port found for task ${action_run_id}, this will result in a memory leak`);
       }
-    } else {
-      logger.warn(`No abort controller found for task ${action_run_id}`);
     }
 
     // Case 3. Worker has completed, this should only happen if the user presses the button prior to the UI updating
