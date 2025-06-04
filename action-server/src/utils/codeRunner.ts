@@ -5,7 +5,6 @@ import { createLogger, format, transports } from "winston";
 import { ActionsAPI } from "@nasa-jpl/aerie-actions";
 import { configuration } from "../config";
 import type { ActionConfig, ActionResponse } from "../type/types";
-import { ENVIRONMENT_VARIALBE_PREFIX } from "./consts";
 
 // todo put this inside a more limited closure scope or it will get reused...
 // const logBuffer: string[] = [];
@@ -45,7 +44,7 @@ function getGlobals() {
 
   // Look at the global environment variables and only pass the ones with our permitted prefix to the action.
   Object.keys(global.process.env).forEach((env) => {
-    if (env.startsWith(ENVIRONMENT_VARIALBE_PREFIX) && global.process.env[env]) {
+    if (env.startsWith(ActionsAPI.ENVIRONMENT_VARIABLE_PREFIX) && global.process.env[env]) {
       permittedEnvironmentVariables[env] = global.process.env[env];
     }
   });
