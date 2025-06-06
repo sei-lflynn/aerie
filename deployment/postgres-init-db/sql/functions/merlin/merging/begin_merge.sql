@@ -201,20 +201,23 @@ begin
   -- receiving 'delete' against supplying 'none' does not enter the merge staging area table
 
   insert into merlin.merge_staging_area (
-    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, created_at, created_by, last_modified_by,
+    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, source_scheduling_goal_invocation_id,
+    created_at, created_by, last_modified_by,
     start_offset, type, arguments, metadata, anchor_id, anchored_to_start, change_type
          )
   -- 'adds' can go directly into the merge staging area table
-  select _merge_request_id, activity_id, name, tags.tag_ids_activity_snapshot(s_diff.activity_id, psa.snapshot_id),  source_scheduling_goal_id, created_at,
-         created_by, last_modified_by, start_offset, type, arguments, metadata, anchor_id, anchored_to_start, change_type
+  select _merge_request_id, activity_id, name, tags.tag_ids_activity_snapshot(s_diff.activity_id, psa.snapshot_id),
+         source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at, created_by, last_modified_by,
+         start_offset, type, arguments, metadata, anchor_id, anchored_to_start, change_type
     from supplying_diff as  s_diff
     join merlin.plan_snapshot_activities psa
       on s_diff.activity_id = psa.id
     where snapshot_id = snapshot_id_supplying and change_type = 'add'
   union
   -- an 'add' between the receiving plan and merge base is actually a 'none'
-  select _merge_request_id, activity_id, name, tags.tag_ids_activity_directive(r_diff.activity_id, ad.plan_id),  source_scheduling_goal_id, created_at,
-         created_by, last_modified_by, start_offset, type, arguments, metadata, anchor_id, anchored_to_start, 'none'::merlin.activity_change_type
+  select _merge_request_id, activity_id, name, tags.tag_ids_activity_directive(r_diff.activity_id, ad.plan_id),
+         source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at, created_by, last_modified_by,
+         start_offset, type, arguments, metadata, anchor_id, anchored_to_start, 'none'::merlin.activity_change_type
     from receiving_diff as r_diff
     join merlin.activity_directive ad
       on r_diff.activity_id = ad.id
@@ -233,12 +236,14 @@ begin
        or (change_type_receiving = 'delete' and change_type_supplying = 'none');
 
   insert into merlin.merge_staging_area (
-    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, created_at, created_by, last_modified_by,
+    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, source_scheduling_goal_invocation_id,
+    created_at, created_by, last_modified_by,
     start_offset, type, arguments, metadata, anchor_id, anchored_to_start, change_type
   )
   -- receiving 'none' and 'modify' against 'none' in the supplying side go into the merge staging area as 'none'
-  select _merge_request_id, activity_id, name, tags.tag_ids_activity_directive(diff_diff.activity_id, plan_id),  source_scheduling_goal_id, created_at,
-         created_by, last_modified_by, start_offset, type, arguments, metadata, anchor_id, anchored_to_start, 'none'
+  select _merge_request_id, activity_id, name, tags.tag_ids_activity_directive(diff_diff.activity_id, plan_id),
+         source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at, created_by, last_modified_by,
+         start_offset, type, arguments, metadata, anchor_id, anchored_to_start, 'none'
     from diff_diff
     join merlin.activity_directive
       on activity_id=id
@@ -282,10 +287,12 @@ begin
     where ad.plan_id = plan_id_receiving
       and (dd.change_type_supplying = 'modify' and dd.change_type_receiving = 'modify'))
   insert into merlin.merge_staging_area (
-    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, created_at, created_by, last_modified_by,
+    merge_request_id, activity_id, name, tags, source_scheduling_goal_id, source_scheduling_goal_invocation_id,
+    created_at, created_by, last_modified_by,
     start_offset, type, arguments, metadata, anchor_id, anchored_to_start, change_type)
-    select _merge_request_id, ad.id, ad.name, tags,  ad.source_scheduling_goal_id, ad.created_at, ad.created_by,
-         ad.last_modified_by, ad.start_offset, ad.type, ad.arguments, ad.metadata, ad.anchor_id, ad.anchored_to_start, 'none'
+    select _merge_request_id, ad.id, ad.name, tags,  ad.source_scheduling_goal_id, ad.source_scheduling_goal_invocation_id,
+           ad.created_at, ad.created_by, ad.last_modified_by, ad.start_offset, ad.type, ad.arguments, ad.metadata,
+           ad.anchor_id, ad.anchored_to_start, 'none'
     from false_modify fm
     left join merlin.activity_directive ad
       on (ad.plan_id, ad.id) = (plan_id_receiving, fm.activity_id);
