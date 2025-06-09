@@ -54,10 +54,12 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 
 		-- Upsert the rest
 		insert into merlin.activity_directive (
-		      id, plan_id, name, source_scheduling_goal_id, created_at, created_by, last_modified_at, last_modified_by,
+		      id, plan_id, name, source_scheduling_goal_id, source_scheduling_goal_invocation_id,
+		      created_at, created_by, last_modified_at, last_modified_by,
 		      start_offset, type, arguments, last_modified_arguments_at, metadata,
 		      anchor_id, anchored_to_start)
-		select psa.id, _plan_id, psa.name, psa.source_scheduling_goal_id, psa.created_at, psa.created_by, psa.last_modified_at, psa.last_modified_by,
+		select psa.id, _plan_id, psa.name, psa.source_scheduling_goal_id, psa.source_scheduling_goal_invocation_id,
+		       psa.created_at, psa.created_by, psa.last_modified_at, psa.last_modified_by,
 		       psa.start_offset, psa.type, psa.arguments, psa.last_modified_arguments_at, psa.metadata,
 		       psa.anchor_id, psa.anchored_to_start
 		from merlin.plan_snapshot_activities psa
