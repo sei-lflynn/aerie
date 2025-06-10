@@ -219,4 +219,4 @@ comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id
 alter table merlin.simulation_dataset
   drop column model_id;
 
-call migrations.mark_migration_rolled_back('21');
+call migrations.mark_migration_rolled_back('20');
