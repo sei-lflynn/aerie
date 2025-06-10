@@ -13,8 +13,10 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -438,16 +440,28 @@ public class PlanCollaborationTests {
     return activities;
   }
 
-  private String checkModelCompatibility(final int oldModelId, final int newModelId) throws SQLException{
+  private Map<String, String> checkModelCompatibilityForPlan(final int planId, final int newModelId) throws SQLException{
     try(final var statement = connection.createStatement()){
       final var res = statement.executeQuery(
           //language=sql
           """
-          select hasura.check_model_compatibility(%d, %d, '%s'::json);
-          """.formatted(oldModelId, newModelId, merlinHelper.admin.session())
+          select
+          (result -> 'removed_activity_types')::text as removed_activity_types,
+          (result -> 'modified_activity_types')::text as modified_activity_types,
+          (result -> 'impacted_directives')::text as impacted_directives
+          from hasura.check_model_compatibility_for_plan(%d, %d, '%s'::json)
+          """.formatted(planId, newModelId, merlinHelper.admin.session())
       );
-      res.next();
-      return res.getString(1);
+
+      if (res.next()) {
+        final var resultMap = new HashMap<String, String>();
+        resultMap.put("removed_activity_types", res.getString("removed_activity_types"));
+        resultMap.put("modified_activity_types", res.getString("modified_activity_types"));
+        resultMap.put("impacted_directives", res.getString("impacted_directives"));
+        return resultMap;
+      } else {
+        throw new SQLException("No result returned from check_model_compatibility");
+      }
     }
   }
 
@@ -3704,7 +3718,7 @@ public class PlanCollaborationTests {
 
 
     /**
-     * Check that migration changes the mission model of a given plan.
+     * Verify that a compatability check will not show any differences for identical models.
      */
     @Test
     void verifyCompatibilityCheckWorks() throws SQLException {
@@ -3713,15 +3727,15 @@ public class PlanCollaborationTests {
       final int newModelId = merlinHelper.insertMissionModel(newModelFileId);
 
       try {
-        checkModelCompatibility(missionModelId, newModelId);
-        final int modelIdInDb = getPlanModel(planId);
-        assertEquals(modelIdInDb, newModelId);
+        Map<String, String> result = checkModelCompatibilityForPlan(planId, newModelId);
+        System.out.println(result);
+        assertEquals("[]", result.get("removed_activity_types"));
+        assertEquals("{}", result.get("modified_activity_types"));
+        assertEquals("[]", result.get("impacted_directives"));
       } catch (SQLException sqEx){
         throw sqEx;
       }
     }
-
-
   }
 
 
