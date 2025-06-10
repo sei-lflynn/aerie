@@ -443,8 +443,8 @@ public class PlanCollaborationTests {
       final var res = statement.executeQuery(
           //language=sql
           """
-          select hasura.check_model_compatibility(%d, %d, 'PlanCollaborationTests Requester');
-          """.formatted(oldModelId, newModelId)
+          select hasura.check_model_compatibility(%d, %d, '%s'::json);
+          """.formatted(oldModelId, newModelId, merlinHelper.admin.session())
       );
       return res.getString(0);
     }
@@ -455,8 +455,8 @@ public class PlanCollaborationTests {
       final var res = statement.executeQuery(
           //language=sql
           """
-          select hasura.migrate_plan_to_model(%d, %d, '{"x-hasura-user-id": "PlanCollaborationTests Requester"}');
-          """.formatted(planId, newModelId)
+          select hasura.migrate_plan_to_model(%d, %d, '%s'::json);
+          """.formatted(planId, newModelId, merlinHelper.admin.session())
       );
       return res.next();
     }
