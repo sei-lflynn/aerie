@@ -2,7 +2,10 @@
 drop function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json);
 drop table hasura.migrate_plan_to_model_return_value;
 
-drop function hasura.check_model_compatibility;
+drop function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer, hasura_session json);
+drop table hasura.check_model_compatibility_for_plan_return_value;
+
+drop function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer, hasura_session json);
 drop table hasura.check_model_compatibility_return_value;
 
 -- Remove model_id from plan snapshot
