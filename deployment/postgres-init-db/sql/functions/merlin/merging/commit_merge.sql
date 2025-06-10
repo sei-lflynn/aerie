@@ -49,7 +49,7 @@ begin
         and ca.change_type_supplying = 'delete'
     union
     select  _request_id, activity_id, name, tags.tag_ids_activity_snapshot(ca.activity_id, psa.snapshot_id),
-            source_scheduling_goal_id, created_at, source_scheduling_goal_invocation_id,
+            source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at,
             created_by, last_modified_by, start_offset, type, arguments, metadata, anchor_id, anchored_to_start,
             'delete'::merlin.activity_change_type
       from  merlin.conflicting_activities ca

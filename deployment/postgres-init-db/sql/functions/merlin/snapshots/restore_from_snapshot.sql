@@ -68,6 +68,7 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 		-- 'last_modified_at' and 'last_modified_arguments_at' are skipped during update, as triggers will overwrite them to now()
 		set name = excluded.name,
 		    source_scheduling_goal_id = excluded.source_scheduling_goal_id,
+		    source_scheduling_goal_invocation_id = excluded.source_scheduling_goal_invocation_id,
 		    created_at = excluded.created_at,
 		    created_by = excluded.created_by,
 		    last_modified_by = excluded.last_modified_by,

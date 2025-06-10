@@ -45,7 +45,7 @@ begin
         and ca.change_type_supplying = 'delete'
     union
     select  _request_id, activity_id, name, tags.tag_ids_activity_snapshot(ca.activity_id, psa.snapshot_id),
-            source_scheduling_goal_id, created_at, source_scheduling_goal_invocation_id,
+            source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at,
             created_by, last_modified_by, start_offset, type, arguments, metadata, anchor_id, anchored_to_start,
             'delete'::merlin.activity_change_type
       from  merlin.conflicting_activities ca
@@ -722,6 +722,7 @@ create or replace procedure merlin.restore_from_snapshot(_plan_id integer, _snap
 		-- 'last_modified_at' and 'last_modified_arguments_at' are skipped during update, as triggers will overwrite them to now()
 		set name = excluded.name,
 		    source_scheduling_goal_id = excluded.source_scheduling_goal_id,
+		    source_scheduling_goal_invocation_id = excluded.source_scheduling_goal_invocation_id,
 		    created_at = excluded.created_at,
 		    created_by = excluded.created_by,
 		    last_modified_by = excluded.last_modified_by,
@@ -756,6 +757,68 @@ create or replace procedure merlin.restore_from_snapshot(_plan_id integer, _snap
 		-- Clean up
 		drop table diff;
   end
+$$;
+
+create or replace function hasura.restore_activity_changelog(
+  _plan_id integer,
+  _activity_directive_id integer,
+  _revision integer,
+  hasura_session json
+)
+  returns setof merlin.activity_directive
+  volatile
+  language plpgsql as $$
+declare
+  _function_permission permissions.permission;
+begin
+  _function_permission :=
+      permissions.get_function_permissions('restore_activity_changelog', hasura_session);
+  if not _function_permission = 'NO_CHECK' then
+    call permissions.check_general_permissions(
+      'restore_activity_changelog',
+      _function_permission, _plan_id,
+      (hasura_session ->> 'x-hasura-user-id')
+    );
+  end if;
+
+  if not exists(select id from merlin.plan where id = _plan_id) then
+    raise exception 'Plan % does not exist', _plan_id;
+  end if;
+
+  if not exists(select id from merlin.activity_directive where (id, plan_id) = (_activity_directive_id, _plan_id)) then
+    raise exception 'Activity Directive % does not exist in Plan %', _activity_directive_id, _plan_id;
+  end if;
+
+  if not exists(select revision
+                from merlin.activity_directive_changelog
+                where (plan_id, activity_directive_id, revision) =
+                      (_plan_id, _activity_directive_id, _revision))
+  then
+    raise exception 'Changelog Revision % does not exist for Plan % and Activity Directive %', _revision, _plan_id, _activity_directive_id;
+  end if;
+
+  return query
+  update merlin.activity_directive as ad
+  set name                                  = c.name,
+      source_scheduling_goal_id             = c.source_scheduling_goal_id,
+      source_scheduling_goal_invocation_id  = c.source_scheduling_goal_invocation_id,
+      start_offset                          = c.start_offset,
+      type                                  = c.type,
+      arguments                             = c.arguments,
+      last_modified_arguments_at            = c.changed_arguments_at,
+      metadata                              = c.metadata,
+      anchor_id                             = c.anchor_id,
+      anchored_to_start                     = c.anchored_to_start,
+      last_modified_at                      = c.changed_at,
+      last_modified_by                      = c.changed_by
+  from merlin.activity_directive_changelog as c
+  where ad.id                    = _activity_directive_id
+    and c.activity_directive_id  = _activity_directive_id
+    and ad.plan_id               = _plan_id
+    and c.plan_id                = _plan_id
+    and c.revision               = _revision
+  returning ad.*;
+end
 $$;
 
 call migrations.mark_migration_applied('20');
