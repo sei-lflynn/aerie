@@ -446,7 +446,8 @@ public class PlanCollaborationTests {
           select hasura.check_model_compatibility(%d, %d, '%s'::json);
           """.formatted(oldModelId, newModelId, merlinHelper.admin.session())
       );
-      return res.getString(0);
+      res.next();
+      return res.getString(1);
     }
   }
 
