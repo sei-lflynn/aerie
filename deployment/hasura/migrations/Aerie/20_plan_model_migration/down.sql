@@ -1,5 +1,5 @@
 -- Remove plan migration functions
-drop function hasura.migrate_plan_to_model();
+drop function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json);
 drop table hasura.migrate_plan_to_model_return_value;
 
 drop function hasura.check_model_compatibility;
