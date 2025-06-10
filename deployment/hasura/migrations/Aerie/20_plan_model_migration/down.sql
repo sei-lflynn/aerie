@@ -74,6 +74,9 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
   '  - When the snapshot was taken'
   '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
+-- End of create_snapshot changes
+
+-- Restore merge request functions to state before this migration
 drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
 create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
   returns integer
@@ -109,7 +112,9 @@ begin
   return merge_request_id;
 end
 $$;
+-- End of merge request changes
 
+-- Restore the restore from snapshot function to state before this migration
 drop procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer);
 create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
   language plpgsql as $$
@@ -217,6 +222,47 @@ $$;
 
 comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer) is e''
   'Restore a plan to its state described in the given snapshot.';
+-- End of restore from snapshot changes
+
+
+-- Restore state of set_revisions_and_initialize_dataset_on_insert
+drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
+drop function merlin.set_revisions_and_initialize_dataset_on_insert();
+create function merlin.set_revisions_and_initialize_dataset_on_insert()
+  returns trigger
+  security definer
+  language plpgsql as $$
+declare
+  simulation_ref merlin.simulation;
+  plan_ref merlin.plan;
+  model_ref merlin.mission_model;
+  template_ref merlin.simulation_template;
+  dataset_ref merlin.dataset;
+begin
+  -- Set the revisions
+  select into simulation_ref * from merlin.simulation where id = new.simulation_id;
+  select into plan_ref * from merlin.plan where id = simulation_ref.plan_id;
+  select into template_ref * from merlin.simulation_template where id = simulation_ref.simulation_template_id;
+  select into model_ref * from merlin.mission_model where id = plan_ref.model_id;
+  new.model_revision = model_ref.revision;
+  new.plan_revision = plan_ref.revision;
+  new.simulation_template_revision = template_ref.revision;
+  new.simulation_revision = simulation_ref.revision;
+
+  -- Create the dataset
+  insert into merlin.dataset
+    default values
+  returning * into dataset_ref;
+  new.dataset_id = dataset_ref.id;
+  new.dataset_revision = dataset_ref.revision;
+  return new;
+end$$;
+
+create trigger set_revisions_and_initialize_dataset_on_insert_trigger
+  before insert on merlin.simulation_dataset
+  for each row
+execute function merlin.set_revisions_and_initialize_dataset_on_insert();
+-- End of set_revisions_and_initialize_dataset_on_insert changes
 
 -- Drop model_id column from simulation_dataset
 alter table merlin.simulation_dataset
