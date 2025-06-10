@@ -264,20 +264,6 @@ create trigger set_revisions_and_initialize_dataset_on_insert_trigger
   for each row
   execute function merlin.set_revisions_and_initialize_dataset_on_insert();
 
-create function merlin.delete_dataset_on_delete()
-returns trigger
-security definer
-language plpgsql as $$begin
-  delete from merlin.dataset
-  where id = old.dataset_id;
-return old;
-end$$;
-
-create trigger delete_dataset_on_delete_trigger
-  after delete on merlin.simulation_dataset
-  for each row
-  execute function merlin.delete_dataset_on_delete();
-
 -- Drop model_id column from simulation_dataset
 alter table merlin.simulation_dataset
   drop column model_id;
