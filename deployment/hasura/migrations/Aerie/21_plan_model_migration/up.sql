@@ -31,12 +31,12 @@ begin
     from merlin.plan where id = _plan_id
     returning snapshot_id into inserted_snapshot_id;
   insert into merlin.plan_snapshot_activities(
-      snapshot_id, id, name, source_scheduling_goal_id, created_at, created_by,
+      snapshot_id, id, name, source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at, created_by,
       last_modified_at, last_modified_by, start_offset, type,
       arguments, last_modified_arguments_at, metadata, anchor_id, anchored_to_start)
     select
       inserted_snapshot_id,                              -- this is the snapshot id
-      id, name, source_scheduling_goal_id, created_at, created_by, -- these are the rest of the data for an activity row
+      id, name, source_scheduling_goal_id, source_scheduling_goal_invocation_id, created_at, created_by, -- these are the rest of the data for an activity row
       last_modified_at, last_modified_by, start_offset, type,
       arguments, last_modified_arguments_at, metadata, anchor_id, anchored_to_start
     from merlin.activity_directive where activity_directive.plan_id = _plan_id;
@@ -61,6 +61,18 @@ begin
   return inserted_snapshot_id;
   end;
 $$;
+
+comment on function merlin.create_snapshot(integer) is e''
+	'See comment on create_snapshot(integer, text, text, text)';
+
+comment on function merlin.create_snapshot(integer, text, text, text) is e''
+  'Create a snapshot of the specified plan. A snapshot consists of:'
+  '  - The plan''s id, model id, and revision'
+  '  - All the activities in the plan'
+  '  - The preset status of those activities'
+  '  - The tags on those activities'
+	'  - When the snapshot was taken'
+	'  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
 
 drop procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer);
@@ -131,10 +143,12 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 
 		-- Upsert the rest
 		insert into merlin.activity_directive (
-		      id, plan_id, name, source_scheduling_goal_id, created_at, created_by, last_modified_at, last_modified_by,
+		      id, plan_id, name, source_scheduling_goal_id, source_scheduling_goal_invocation_id,
+		      created_at, created_by, last_modified_at, last_modified_by,
 		      start_offset, type, arguments, last_modified_arguments_at, metadata,
 		      anchor_id, anchored_to_start)
-		select psa.id, _plan_id, psa.name, psa.source_scheduling_goal_id, psa.created_at, psa.created_by, psa.last_modified_at, psa.last_modified_by,
+		select psa.id, _plan_id, psa.name, psa.source_scheduling_goal_id, psa.source_scheduling_goal_invocation_id,
+		       psa.created_at, psa.created_by, psa.last_modified_at, psa.last_modified_by,
 		       psa.start_offset, psa.type, psa.arguments, psa.last_modified_arguments_at, psa.metadata,
 		       psa.anchor_id, psa.anchored_to_start
 		from merlin.plan_snapshot_activities psa
@@ -143,6 +157,7 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 		-- 'last_modified_at' and 'last_modified_arguments_at' are skipped during update, as triggers will overwrite them to now()
 		set name = excluded.name,
 		    source_scheduling_goal_id = excluded.source_scheduling_goal_id,
+		    source_scheduling_goal_invocation_id = excluded.source_scheduling_goal_invocation_id,
 		    created_at = excluded.created_at,
 		    created_by = excluded.created_by,
 		    last_modified_by = excluded.last_modified_by,
@@ -180,20 +195,7 @@ create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id int
 $$;
 
 comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer) is e''
-  'Restore a plan to its state described in the given snapshot.';
-
-
-comment on function merlin.create_snapshot(integer) is e''
-  'See comment on create_snapshot(integer, text, text, text)';
-
-comment on function merlin.create_snapshot(integer, text, text, text) is e''
-  'Create a snapshot of the specified plan. A snapshot consists of:'
-  '  - The plan''s id, model id, and revision'
-  '  - All the activities in the plan'
-  '  - The preset status of those activities'
-  '  - The tags on those activities'
-  '  - When the snapshot was taken'
-  '  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
+	'Restore a plan to its state described in the given snapshot.';
 
 -- Update create_merge_request function to check model IDs
 drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
