@@ -496,8 +496,8 @@ alter table merlin.plan_snapshot_activities
 alter table merlin.merge_staging_area
   add column source_scheduling_goal_invocation_id integer;
 
-comment on column merlin.merge_staging_area.source_scheduling_goal_id is e''
-  'The invocation of the scheduling goal that generated this activity directive to be committed.';
+comment on column merlin.merge_staging_area.source_scheduling_goal_invocation_id is e''
+  'The invocation id of the scheduling goal that generated this activity directive to be committed.';
 
 alter table merlin.activity_directive_changelog
   add column source_scheduling_goal_invocation_id integer;

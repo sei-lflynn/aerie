@@ -52,8 +52,8 @@ comment on column merlin.merge_staging_area.tags is e''
   'The tags of this activity directive to be committed.';
 comment on column merlin.merge_staging_area.source_scheduling_goal_id is e''
   'The id of the scheduling goal that generated this activity directive to be committed.';
-comment on column merlin.merge_staging_area.source_scheduling_goal_id is e''
-  'The invocation of the scheduling goal that generated this activity directive to be committed.';
+comment on column merlin.merge_staging_area.source_scheduling_goal_invocation_id is e''
+  'The invocation id of the scheduling goal that generated this activity directive to be committed.';
 comment on column merlin.merge_staging_area.created_at is e''
   'The creation time of this activity directive to be committed.';
 comment on column merlin.merge_staging_area.start_offset is e''
