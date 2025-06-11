@@ -22,3 +22,5 @@ call migrations.mark_migration_applied('17');
 call migrations.mark_migration_applied('18');
 call migrations.mark_migration_applied('19');
 call migrations.mark_migration_applied('20');
+call migrations.mark_migration_applied('21');
+
