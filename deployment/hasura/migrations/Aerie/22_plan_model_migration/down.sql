@@ -268,4 +268,4 @@ create trigger set_revisions_and_initialize_dataset_on_insert_trigger
 alter table merlin.simulation_dataset
   drop column model_id;
 
-call migrations.mark_migration_rolled_back('21');
+call migrations.mark_migration_rolled_back('22');
