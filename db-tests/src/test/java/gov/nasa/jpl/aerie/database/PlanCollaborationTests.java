@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -248,21 +249,6 @@ public class PlanCollaborationTests {
     }
   }
 
-  private List<Integer> getPlanMetadata(final int planId) throws SQLException{
-    try (final var statement = connection.createStatement()) {
-      final var res = statement.executeQuery(
-          //language=sql
-          """
-          SELECT merlin.get_plan_history(%d);
-          """.formatted(planId));
-      final ArrayList<Integer> ancestorPlanIds = new ArrayList<>();
-      while(res.next()) {
-        ancestorPlanIds.add(res.getInt(1));
-      }
-      return ancestorPlanIds;
-    }
-  }
-
   private void lockPlan(final int planId) throws SQLException{
     try(final var statement = connection.createStatement()){
       statement.execute(
@@ -449,8 +435,8 @@ public class PlanCollaborationTests {
           (result -> 'removed_activity_types')::text as removed_activity_types,
           (result -> 'modified_activity_types')::text as modified_activity_types,
           (result -> 'impacted_directives')::text as impacted_directives
-          from hasura.check_model_compatibility_for_plan(%d, %d, '%s'::json)
-          """.formatted(planId, newModelId, merlinHelper.admin.session())
+          from hasura.check_model_compatibility_for_plan(%d, %d)
+          """.formatted(planId, newModelId)
       );
 
       if (res.next()) {
@@ -3628,33 +3614,23 @@ public class PlanCollaborationTests {
     void checkFailsForNonexistentPlansOrModels() throws SQLException {
       final int existingPlanId = merlinHelper.insertPlan(missionModelId);
 
-      try{
-        migratePlanToModel(-1, missionModelId);
-        fail();
-      }
-      catch (SQLException sqEx){
-        if(!sqEx.getMessage().contains("Plan -1 does not exist"))
-          throw sqEx;
-      }
+      assertThrows(
+          SQLException.class,
+          () -> migratePlanToModel(-1, missionModelId),
+          "Plan -1 does not exist"
+      );
 
-      try{
-        migratePlanToModel(existingPlanId, -1);
-        fail();
-      }
-      catch (SQLException sqEx){
-        if(!sqEx.getMessage().contains("Model -1 does not exist"))
-          throw sqEx;
-      }
+      assertThrows(
+          SQLException.class,
+          () -> migratePlanToModel(existingPlanId, -1),
+          "Model -1 does not exist"
+      );
 
-      try{
-        migratePlanToModel(-1, -1);
-        fail();
-      }
-      catch (SQLException sqEx){
-        if(!sqEx.getMessage().contains("Plan -1 does not exist"))
-          throw sqEx;
-      }
-
+      assertThrows(
+          SQLException.class,
+          () -> migratePlanToModel(-1, -1),
+          "Plan -1 does not exist"
+      );
     }
 
 
@@ -3669,14 +3645,11 @@ public class PlanCollaborationTests {
       final int branchId = duplicatePlan(planId, "MultiTags Test");
       final int mergeRQ = createMergeRequest(planId, branchId);
 
-      try{
-        migratePlanToModel(planId, modelId);
-        fail();
-      }
-      catch (SQLException sqEx){
-        if(!sqEx.getMessage().contains("Cannot migrate plan "+planId+": it has open merge requests"))
-          throw sqEx;
-      }
+      assertThrows(
+          SQLException.class,
+          () -> migratePlanToModel(planId, modelId),
+          "Cannot migrate plan "+planId+": it has open merge requests"
+      );
 
     }
 

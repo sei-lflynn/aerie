@@ -13,8 +13,7 @@ where plan.id = snap.plan_id;
 
 
 -- Alter snapshot functions
-drop function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text);
-create function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text)
+create or replace function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text)
   returns integer -- snapshot id inserted into the table
   language plpgsql as $$
   declare
@@ -75,8 +74,7 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
 	'  - Optionally: who took the snapshot, a name for the snapshot, a description of the snapshot';
 
 
-drop procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer);
-create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
+create or replace procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
 	language plpgsql as $$
 	declare
 		_snapshot_name text;
@@ -198,8 +196,7 @@ comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id
 	'Restore a plan to its state described in the given snapshot.';
 
 -- Update create_merge_request function to check model IDs
-drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
-create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
+create or replace function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
   returns integer
   language plpgsql as $$
 declare
@@ -246,8 +243,7 @@ $$;
 -- drop trigger first & recreate after
 drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
 
-drop function merlin.set_revisions_and_initialize_dataset_on_insert();
-create function merlin.set_revisions_and_initialize_dataset_on_insert()
+create or replace function merlin.set_revisions_and_initialize_dataset_on_insert()
 returns trigger
 security definer
 language plpgsql as $$
@@ -306,16 +302,7 @@ set model_id = (
 
 -- Add plan migration functions
 create table hasura.migrate_plan_to_model_return_value(result text);
-/*
-* This function does the following:
-*     * creates a snapshot of the specified plan
-*     * updates the specified plan to have model_id = _new_model_id
-*     * invalidates the activity validations, which will trigger the activity validator to run again
-* It will not update the plan if:
-*     * user has incorrect permissions (see default_user_roles for details)
-*     * there are open merge requests for the given plan
-*     * the given plan or model does not exist
-*/
+
 create function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json)
   returns hasura.migrate_plan_to_model_return_value
   volatile
@@ -383,15 +370,20 @@ begin
 end
 $$;
 
+comment on function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json) is e''
+  'This function does the following:\n'
+  '  * creates a snapshot of the specified plan.\n'
+  '  * updates the specified plan to have model_id = _new_model_id.\n'
+  '  * invalidates the activity validations, which will trigger the activity validator to run again\n'
+  'It will not update the plan if:\n'
+  '  * user has incorrect permissions (see default_user_roles for details)\n'
+  '  * there are open merge requests for the given plan\n'
+  '  * the given plan or model does not exist';
+
 
 create table hasura.check_model_compatibility_return_value(result json);
-/*
-* This function checks whether two models are compatible. It returns a json object containing:
-*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
-*            new parameter schemas for this activity type
-*/
-create function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer, hasura_session json)
+
+create function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer)
   returns hasura.check_model_compatibility_return_value
   volatile
   language plpgsql as $$
@@ -437,17 +429,15 @@ begin
 end
 $$;
 
+comment on function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer) is e''
+  'This function checks whether two models are compatible. It returns a json object containing:\n'
+  '  * removed_activity_types - activity types that are in the old model and not in the new model.\n'
+  '  * modified_activity_types - activity types with differing parameter schemas, including the old and new schemas.';
+
 
 create table hasura.check_model_compatibility_for_plan_return_value(result json);
 
-/*
-* This function checks whether a plan is compatible with a given model. It returns a json object containing:
-*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
-*            new parameter schemas for this activity type
-*     * impacted_directives, containing a list of the directives in the plan that fall into one of the two above categories
-*/
-create function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer, hasura_session json)
+create function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer)
   returns hasura.check_model_compatibility_for_plan_return_value
   volatile
   language plpgsql as $$
@@ -471,7 +461,7 @@ begin
     (result->'removed_activity_types')::json,
     (result->'modified_activity_types')::json
   into _removed, _modified
-  from hasura.check_model_compatibility(_old_model_id, _new_model_id, hasura_session);
+  from hasura.check_model_compatibility(_old_model_id, _new_model_id);
 
   -- Identify problematic activity_directives
   with
@@ -510,5 +500,28 @@ begin
          )::hasura.check_model_compatibility_for_plan_return_value;
 end
 $$;
+
+comment on function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer) is e''
+  'Checks whether a plan is compatible with a given model. It returns a json object containing:\n'
+  '  * removed_activity_types - activity types in the old model but not in the new model.\n'
+  '  * modified_activity_types - activity types with differing parameter schemas, including the old and new schemas.\n'
+  '  * impacted_directives - list of directives in the plan that fall into one of the two categories above.';
+
+-- #### PERMISSIONS ####
+
+-- add new function_permission key for migrate_plan_to_model
+alter type permissions.function_permission_key add value 'migrate_plan_to_model' after 'get_plan_history';
+
+-- temporarily disable permissions validation trigger to avoid uncommitted enum error during migration
+alter table permissions.user_role_permission disable trigger validate_permissions_trigger;
+-- Update user permissions for model migration (see default_user_roles)
+update permissions.user_role_permission
+set function_permissions = function_permissions
+  || jsonb_build_object('migrate_plan_to_model', 'PLAN_OWNER_COLLABORATOR')
+where role = 'user';
+-- re-enable permissions validation
+alter table permissions.user_role_permission enable trigger validate_permissions_trigger;
+
+-- #### END PERMISSIONS ####
 
 call migrations.mark_migration_applied('22');

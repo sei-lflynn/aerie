@@ -1,14 +1,5 @@
 create table hasura.migrate_plan_to_model_return_value(result text);
-/*
-* This function does the following:
-*     * creates a snapshot of the specified plan
-*     * updates the specified plan to have model_id = _new_model_id
-*     * invalidates the activity validations, which will trigger the activity validator to run again
-* It will not update the plan if:
-*     * user has incorrect permissions (see default_user_roles for details)
-*     * there are open merge requests for the given plan
-*     * the given plan or model does not exist
-*/
+
 create function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json)
   returns hasura.migrate_plan_to_model_return_value
   volatile
@@ -76,15 +67,20 @@ begin
 end
 $$;
 
+comment on function hasura.migrate_plan_to_model(_plan_id integer, _new_model_id integer, hasura_session json) is e''
+  'This function does the following:\n'
+  '  * creates a snapshot of the specified plan.\n'
+  '  * updates the specified plan to have model_id = _new_model_id.\n'
+  '  * invalidates the activity validations, which will trigger the activity validator to run again\n'
+  'It will not update the plan if:\n'
+  '  * user has incorrect permissions (see default_user_roles for details)\n'
+  '  * there are open merge requests for the given plan\n'
+  '  * the given plan or model does not exist';
+
 
 create table hasura.check_model_compatibility_return_value(result json);
-/*
-* This function checks whether two models are compatible. It returns a json object containing:
-*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
-*            new parameter schemas for this activity type
-*/
-create function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer, hasura_session json)
+
+create function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer)
   returns hasura.check_model_compatibility_return_value
   volatile
   language plpgsql as $$
@@ -130,17 +126,15 @@ begin
 end
 $$;
 
+comment on function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer) is e''
+  'This function checks whether two models are compatible. It returns a json object containing:\n'
+  '  * removed_activity_types - activity types that are in the old model and not in the new model.\n'
+  '  * modified_activity_types - activity types with differing parameter schemas, including the old and new schemas.';
+
 
 create table hasura.check_model_compatibility_for_plan_return_value(result json);
 
-/*
-* This function checks whether a plan is compatible with a given model. It returns a json object containing:
-*     * removed_activity_types, containing the activity types that are in the old model and not in the new model
-*     * modified_activity_types, containing the activity types with dissimilar parameter schemas, and the old and
-*            new parameter schemas for this activity type
-*     * impacted_directives, containing a list of the directives in the plan that fall into one of the two above categories
-*/
-create function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer, hasura_session json)
+create function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer)
   returns hasura.check_model_compatibility_for_plan_return_value
   volatile
   language plpgsql as $$
@@ -164,7 +158,7 @@ begin
     (result->'removed_activity_types')::json,
     (result->'modified_activity_types')::json
   into _removed, _modified
-  from hasura.check_model_compatibility(_old_model_id, _new_model_id, hasura_session);
+  from hasura.check_model_compatibility(_old_model_id, _new_model_id);
 
   -- Identify problematic activity_directives
   with
@@ -203,3 +197,9 @@ begin
          )::hasura.check_model_compatibility_for_plan_return_value;
 end
 $$;
+
+comment on function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer) is e''
+  'Checks whether a plan is compatible with a given model. It returns a json object containing:\n'
+  '  * removed_activity_types - activity types in the old model but not in the new model.\n'
+  '  * modified_activity_types - activity types with differing parameter schemas, including the old and new schemas.\n'
+  '  * impacted_directives - list of directives in the plan that fall into one of the two categories above.';

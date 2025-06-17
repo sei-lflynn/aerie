@@ -1,5 +1,5 @@
 /*
-  - Find the latest snapshot that exists in the history of both the receiving and supplying plans
+  - Find the latest snapshot that exists in the history of both the receiving plan, and the supplying snapshot
 */
 create function merlin.get_merge_base(plan_id_receiving_changes integer, snapshot_id_supplying_changes integer)
   returns integer

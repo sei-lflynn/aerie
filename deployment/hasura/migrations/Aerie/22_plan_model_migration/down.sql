@@ -1,8 +1,304 @@
+-- #### PERMISSIONS ####
+
+-- Remove user permissions (see default_user_roles)
+update permissions.user_role_permission
+set function_permissions = function_permissions  - 'migrate_plan_to_model';
+
+-- Need to remove the key 'migrate_plan_to_model' from function_permission_key enum, only way is to drop and recreate it.
+----- 1. drop any functions/procedures/objects that depend on permissions.function_permission_key to avoid errors
+drop function permissions.raise_if_plan_merge_permission(_function permissions.function_permission_key, _permission permissions.permission);
+drop procedure permissions.check_merge_permissions(_function permissions.function_permission_key, _merge_request_id integer, hasura_session json);
+drop procedure permissions.check_merge_permissions(_function permissions.function_permission_key, _permission permissions.permission, _plan_id_receiving integer, _plan_id_supplying integer, _user text);
+drop procedure permissions.check_general_permissions(_function permissions.function_permission_key, _permission permissions.permission, _plan_id integer, _user text);
+drop function permissions.get_function_permissions(_function permissions.function_permission_key, hasura_session json);
+
+------ 2. drop permissions.function_permission_key and recreate without 'migrate_plan_to_model'
+drop type permissions.function_permission_key;
+create type permissions.function_permission_key
+as enum ('apply_preset', 'begin_merge', 'branch_plan', 'cancel_merge', 'commit_merge', 'create_merge_rq',
+  'create_snapshot', 'delete_activity_reanchor', 'delete_activity_reanchor_bulk', 'delete_activity_reanchor_plan',
+  'delete_activity_reanchor_plan_bulk', 'delete_activity_subtree', 'delete_activity_subtree_bulk', 'deny_merge',
+  'get_conflicting_activities', 'get_non_conflicting_activities', 'get_plan_history',  'restore_activity_changelog',
+  'restore_snapshot', 'set_resolution', 'set_resolution_bulk', 'withdraw_merge_rq');
+
+------ 3. finally recreate the dependent functions/procedures of function_permission_key
+create function permissions.get_function_permissions(_function permissions.function_permission_key, hasura_session json)
+returns permissions.permission
+stable
+language plpgsql as $$
+declare
+  _role text;
+  _function_permission permissions.permission;
+begin
+  _role := permissions.get_role(hasura_session);
+  -- The aerie_admin role is always treated as having NO_CHECK permissions on all functions.
+  if _role = 'aerie_admin' then return 'NO_CHECK'; end if;
+
+  select (function_permissions ->> _function::text)::permissions.permission
+  from permissions.user_role_permission urp
+  where urp.role = _role
+  into _function_permission;
+
+  -- The absence of the function key means that the role does not have permission to perform the function.
+  if _function_permission is null then
+    raise insufficient_privilege
+      using message = 'User with role '''|| _role ||''' is not permitted to run '''|| _function ||'''';
+  end if;
+
+  return _function_permission::permissions.permission;
+end
+$$;
+
+create procedure permissions.check_general_permissions(
+  _function permissions.function_permission_key,
+  _permission permissions.permission,
+  _plan_id integer,
+  _user text)
+language plpgsql as $$
+declare
+  _mission_model_id integer;
+  _plan_name text;
+begin
+  select name from merlin.plan where id = _plan_id into _plan_name;
+
+  -- MISSION_MODEL_OWNER: The user must own the relevant Mission Model
+  if _permission = 'MISSION_MODEL_OWNER' then
+    select id from merlin.mission_model mm
+    where mm.id = (select model_id from merlin.plan p where p.id = _plan_id)
+    into _mission_model_id;
+
+    if not exists(select * from merlin.mission_model mm where mm.id = _mission_model_id and mm.owner =_user) then
+        raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not MISSION_MODEL_OWNER on Model ' || _mission_model_id ||'.';
+    end if;
+
+  -- OWNER: The user must be the owner of all relevant objects directly used by the KEY
+  -- In most cases, OWNER is equivalent to PLAN_OWNER. Use a custom solution when that is not true.
+  elseif _permission = 'OWNER' then
+		if not exists(select * from merlin.plan p where p.id = _plan_id and p.owner = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not OWNER on Plan ' || _plan_id ||' ('|| _plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER: The user must be the Owner of the relevant Plan
+  elseif _permission = 'PLAN_OWNER' then
+    if not exists(select * from merlin.plan p where p.id = _plan_id and p.owner = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER on Plan '|| _plan_id ||' ('|| _plan_name ||').';
+    end if;
+
+  -- PLAN_COLLABORATOR:	The user must be a Collaborator of the relevant Plan. The Plan Owner is NOT considered a Collaborator of the Plan
+  elseif _permission = 'PLAN_COLLABORATOR' then
+    if not exists(select * from merlin.plan_collaborators pc where pc.plan_id = _plan_id and pc.collaborator = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_COLLABORATOR on Plan '|| _plan_id ||' ('|| _plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER_COLLABORATOR:	The user must be either the Owner or a Collaborator of the relevant Plan
+  elseif _permission = 'PLAN_OWNER_COLLABORATOR' then
+    if not exists(select * from merlin.plan p where p.id = _plan_id and p.owner = _user) then
+      if not exists(select * from merlin.plan_collaborators pc where pc.plan_id = _plan_id and pc.collaborator = _user) then
+        raise insufficient_privilege
+          using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER_COLLABORATOR on Plan '|| _plan_id ||' ('|| _plan_name ||').';
+      end if;
+    end if;
+  end if;
+end
+$$;
+
+create procedure permissions.check_merge_permissions(_function permissions.function_permission_key, _merge_request_id integer, hasura_session json)
+language plpgsql as $$
+declare
+  _plan_id_receiving_changes integer;
+  _plan_id_supplying_changes integer;
+  _function_permission permissions.permission;
+  _user text;
+begin
+  select plan_id_receiving_changes
+  from merlin.merge_request mr
+  where mr.id = _merge_request_id
+  into _plan_id_receiving_changes;
+
+  select plan_id
+  from merlin.plan_snapshot ps, merlin.merge_request mr
+  where mr.id = _merge_request_id and ps.snapshot_id = mr.snapshot_id_supplying_changes
+  into _plan_id_supplying_changes;
+
+  _user := (hasura_session ->> 'x-hasura-user-id');
+  _function_permission := permissions.get_function_permissions('get_non_conflicting_activities', hasura_session);
+  call permissions.check_merge_permissions(_function, _function_permission, _plan_id_receiving_changes,
+    _plan_id_supplying_changes, _user);
+end
+$$;
+
+create procedure permissions.check_merge_permissions(
+  _function permissions.function_permission_key,
+  _permission permissions.permission,
+  _plan_id_receiving integer,
+  _plan_id_supplying integer,
+  _user text)
+language plpgsql as $$
+declare
+  _supplying_plan_name text;
+  _receiving_plan_name text;
+begin
+  select name from merlin.plan where id = _plan_id_supplying into _supplying_plan_name;
+  select name from merlin.plan where id = _plan_id_receiving into _receiving_plan_name;
+
+  -- MISSION_MODEL_OWNER: The user must own the relevant Mission Model
+  if _permission = 'MISSION_MODEL_OWNER' then
+    call permissions.check_general_permissions(_function, _permission, _plan_id_receiving, _user);
+
+  -- OWNER: The user must be the Owner of both Plans
+  elseif _permission = 'OWNER' then
+    if not (exists(select * from merlin.plan p where p.id = _plan_id_receiving and p.owner = _user)) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''
+                          || _user ||''' is not OWNER on Plan '|| _plan_id_receiving
+                          ||' ('|| _receiving_plan_name ||').';
+    elseif not (exists(select * from merlin.plan p2 where p2.id = _plan_id_supplying and p2.owner = _user)) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''
+                          || _user ||''' is not OWNER on Plan '|| _plan_id_supplying
+                          ||' ('|| _supplying_plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER: The user must be the Owner of either Plan
+  elseif _permission = 'PLAN_OWNER' then
+    if not exists(select *
+                  from merlin.plan p
+                  where (p.id = _plan_id_receiving or p.id = _plan_id_supplying)
+                    and p.owner = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''
+                          || _user ||''' is not PLAN_OWNER on either Plan '|| _plan_id_receiving
+                          ||' ('|| _receiving_plan_name ||') or Plan '|| _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+    end if;
+
+  -- PLAN_COLLABORATOR:	The user must be a Collaborator of either Plan. The Plan Owner is NOT considered a Collaborator of the Plan
+  elseif _permission = 'PLAN_COLLABORATOR' then
+    if not exists(select *
+                  from merlin.plan_collaborators pc
+                  where (pc.plan_id = _plan_id_receiving or pc.plan_id = _plan_id_supplying)
+                    and pc.collaborator = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''
+                          || _user ||''' is not PLAN_COLLABORATOR on either Plan '|| _plan_id_receiving
+                          ||' ('|| _receiving_plan_name ||') or Plan '|| _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER_COLLABORATOR:	The user must be either the Owner or a Collaborator of either Plan
+  elseif _permission = 'PLAN_OWNER_COLLABORATOR' then
+    if not exists(select *
+                  from merlin.plan p
+                  where (p.id = _plan_id_receiving or p.id = _plan_id_supplying)
+                    and p.owner = _user) then
+      if not exists(select *
+                    from merlin.plan_collaborators pc
+                    where (pc.plan_id = _plan_id_receiving or pc.plan_id = _plan_id_supplying)
+                      and pc.collaborator = _user) then
+        raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''
+                          || _user ||''' is not PLAN_OWNER_COLLABORATOR on either Plan '|| _plan_id_receiving
+                          ||' ('|| _receiving_plan_name ||') or Plan '|| _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+
+      end if;
+    end if;
+
+  -- PLAN_OWNER_SOURCE:	The user must be the Owner of the Supplying Plan
+  elseif _permission = 'PLAN_OWNER_SOURCE' then
+    if not exists(select *
+                  from merlin.plan p
+                  where p.id = _plan_id_supplying and p.owner = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER on Source Plan '
+                          || _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+    end if;
+
+  -- PLAN_COLLABORATOR_SOURCE: The user must be a Collaborator of the Supplying Plan.
+  elseif _permission = 'PLAN_COLLABORATOR_SOURCE' then
+    if not exists(select *
+                  from merlin.plan_collaborators pc
+                  where pc.plan_id = _plan_id_supplying and pc.collaborator = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_COLLABORATOR on Source Plan '
+                          || _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER_COLLABORATOR_SOURCE:	The user must be either the Owner or a Collaborator of the Supplying Plan.
+  elseif _permission = 'PLAN_OWNER_COLLABORATOR_SOURCE' then
+    if not exists(select *
+                  from merlin.plan p
+                  where p.id = _plan_id_supplying and p.owner = _user) then
+      if not exists(select *
+                    from merlin.plan_collaborators pc
+                    where pc.plan_id = _plan_id_supplying and pc.collaborator = _user) then
+        raise insufficient_privilege
+          using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER_COLLABORATOR on Source Plan '
+                          || _plan_id_supplying ||' ('|| _supplying_plan_name ||').';
+      end if;
+    end if;
+
+  -- PLAN_OWNER_TARGET: The user must be the Owner of the Receiving Plan.
+  elseif _permission = 'PLAN_OWNER_TARGET' then
+    if not exists(select *
+                  from merlin.plan p
+                  where p.id = _plan_id_receiving and p.owner = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER on Target Plan '
+                          || _plan_id_receiving ||' ('|| _receiving_plan_name ||').';
+    end if;
+
+  -- PLAN_COLLABORATOR_TARGET: The user must be a Collaborator of the Receiving Plan.
+  elseif _permission = 'PLAN_COLLABORATOR_TARGET' then
+    if not exists(select *
+                  from merlin.plan_collaborators pc
+                  where pc.plan_id = _plan_id_receiving and pc.collaborator = _user) then
+      raise insufficient_privilege
+        using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_COLLABORATOR on Target Plan '
+                          || _plan_id_receiving ||' ('|| _receiving_plan_name ||').';
+    end if;
+
+  -- PLAN_OWNER_COLLABORATOR_TARGET: The user must be either the Owner or a Collaborator of the Receiving Plan.
+  elseif _permission = 'PLAN_OWNER_COLLABORATOR_TARGET' then
+    if not exists(select *
+                  from merlin.plan p
+                  where p.id = _plan_id_receiving and p.owner = _user) then
+      if not exists(select *
+                    from merlin.plan_collaborators pc
+                    where pc.plan_id = _plan_id_receiving and pc.collaborator = _user) then
+        raise insufficient_privilege
+          using message = 'Cannot run '''|| _function ||''': '''|| _user ||''' is not PLAN_OWNER_COLLABORATOR on Target Plan '
+                          || _plan_id_receiving ||' ('|| _receiving_plan_name ||').';
+      end if;
+    end if;
+  end if;
+end
+$$;
+
+create function permissions.raise_if_plan_merge_permission(_function permissions.function_permission_key, _permission permissions.permission)
+  returns void
+  immutable
+  language plpgsql as $$
+begin
+  if _permission::text = any(array['PLAN_OWNER_SOURCE', 'PLAN_COLLABORATOR_SOURCE', 'PLAN_OWNER_COLLABORATOR_SOURCE',
+    'PLAN_OWNER_TARGET', 'PLAN_COLLABORATOR_TARGET', 'PLAN_OWNER_COLLABORATOR_TARGET'])
+  then
+    raise 'Invalid Permission: The Permission ''%'' may not be applied to function ''%''', _permission, _function;
+  end if;
+end
+$$;
+
+-- done modifying permissions.function_permission_key enum
+
+-- #### END PERMISSIONS ####
+
+
 -- Remove plan migration check functions
-drop function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer, hasura_session json);
+drop function hasura.check_model_compatibility_for_plan(_plan_id integer, _new_model_id integer);
 drop table hasura.check_model_compatibility_for_plan_return_value;
 
-drop function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer, hasura_session json);
+drop function hasura.check_model_compatibility(_old_model_id integer, _new_model_id integer);
 drop table hasura.check_model_compatibility_return_value;
 
 -- Remove plan migration function
@@ -16,8 +312,8 @@ alter table merlin.simulation_dataset
 
 -- Restore state of set_revisions_and_initialize_dataset_on_insert
 drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
-drop function merlin.set_revisions_and_initialize_dataset_on_insert();
-create function merlin.set_revisions_and_initialize_dataset_on_insert()
+
+create or replace function merlin.set_revisions_and_initialize_dataset_on_insert()
 returns trigger
 security definer
 language plpgsql as $$
@@ -55,8 +351,7 @@ create trigger set_revisions_and_initialize_dataset_on_insert_trigger
 
 
 -- Restore merge request functions to state before this migration
-drop function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text);
-create function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
+create or replace function merlin.create_merge_request(plan_id_supplying integer, plan_id_receiving integer, request_username text)
   returns integer
   language plpgsql as $$
 declare
@@ -94,8 +389,7 @@ $$;
 
 
 -- Restore the restore from snapshot function to state before this migration
-drop procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer);
-create procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
+create or replace procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id integer)
 	language plpgsql as $$
 	declare
 		_snapshot_name text;
@@ -205,8 +499,7 @@ comment on procedure merlin.restore_from_snapshot(_plan_id integer, _snapshot_id
 
 
 -- Restore plan snapshot functions to state before this migration
-drop function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text);
-create function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text)
+create or replace function merlin.create_snapshot(_plan_id integer, _snapshot_name text, _description text, _user text)
   returns integer -- snapshot id inserted into the table
   language plpgsql as $$
   declare
@@ -271,6 +564,5 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
 -- Remove model_id from plan snapshot
 alter table merlin.plan_snapshot
   drop column model_id;
-
 
 call migrations.mark_migration_rolled_back('22');
