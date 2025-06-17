@@ -3,7 +3,6 @@ package gov.nasa.jpl.aerie.e2e.procedural.scheduling;
 import gov.nasa.jpl.aerie.e2e.types.GoalInvocationId;
 import gov.nasa.jpl.aerie.e2e.types.Plan;
 import gov.nasa.jpl.aerie.e2e.utils.GatewayRequests;
-import gov.nasa.jpl.aerie.e2e.utils.HasuraRequests;
 import gov.nasa.jpl.aerie.merlin.protocol.types.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,19 +10,14 @@ import org.junit.jupiter.api.Test;
 
 import javax.json.Json;
 import javax.json.JsonObject;
-import javax.json.JsonReader;
-import javax.json.JsonString;
-import javax.json.stream.JsonParser;
 import java.io.IOException;
-import java.io.StringReader;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class ExternalEventsTests extends ProceduralSchedulingSetup {
+public class ExternalEventsSchedulingTests extends ProceduralSchedulingSetup {
   private GoalInvocationId procedureId;
   private final static String SOURCE_TYPE = "TestType";
   private final static String EVENT_TYPE = "TestType";
@@ -228,7 +222,7 @@ public class ExternalEventsTests extends ProceduralSchedulingSetup {
     assertEquals(1, activities.size());
     Instant activityStartTime = Duration.addToInstant(
         Instant.parse(planStartTimestamp),
-        Duration.fromString(activities.get(0).startOffset())
+        Duration.fromString(activities.getFirst().startOffset())
     );
     assertEquals(activityStartTime.toString(), "2023-01-02T01:00:00Z");
   }
