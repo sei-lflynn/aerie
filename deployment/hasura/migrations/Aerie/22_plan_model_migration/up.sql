@@ -79,7 +79,6 @@ create or replace procedure merlin.restore_from_snapshot(_plan_id integer, _snap
 	declare
 		_snapshot_name text;
 		_plan_name text;
-		_model_name text;
 		_model_id integer;
 	begin
 		-- Input Validation
