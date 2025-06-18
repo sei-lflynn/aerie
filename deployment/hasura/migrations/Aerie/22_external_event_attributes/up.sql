@@ -8,6 +8,10 @@ comment on column merlin.external_event_type.attribute_schema is e''
 
 alter table merlin.external_source add column attributes jsonb not null default '{}';
 comment on column merlin.external_source.attributes is e''
+  'Additional data captured from the original external source, in key/pair form.';
+
+alter table merlin.external_event add column attributes jsonb not null default '{}';
+comment on column merlin.external_event.attributes is e''
   'Additional data captured from the original external event, in key/pair form.';
 
 drop materialized view merlin.derived_events;
