@@ -1,6 +1,5 @@
 create table merlin.external_source_type (
     name text not null,
-    attribute_schema jsonb not null default '{}',
 
     constraint external_source_type_pkey
       primary key (name)
@@ -14,12 +13,8 @@ comment on table merlin.external_source_type is e''
 comment on column merlin.external_source_type.name is e''
   'The identifier for this external_source_type, as well as its name.';
 
-comment on column merlin.external_source_type.attribute_schema is e''
-  'The JSON schema used to validate attributes for sources using this source type.';
-
 create table merlin.external_event_type (
     name text not null,
-    attribute_schema jsonb not null default '{}',
 
     constraint external_event_type_pkey
       primary key (name)
@@ -30,9 +25,6 @@ comment on table merlin.external_event_type is e''
 
 comment on column merlin.external_event_type.name is e''
   'The identifier for this external_event_type, as well as its name.';
-
-comment on column merlin.external_event_type.attribute_schema is e''
-  'The JSON schema used to validate attributes for events using this event type.';
 
 create table merlin.derivation_group (
     name text not null,
@@ -72,7 +64,6 @@ create table merlin.external_source (
     CHECK (end_time > start_time),
     created_at timestamp with time zone default now() not null,
     owner text,
-    attributes jsonb not null default '{}',
 
     constraint external_source_pkey
       primary key (key, derivation_group_name),
@@ -116,8 +107,6 @@ comment on column merlin.external_source.created_at is e''
   'This column is used primarily for documentation purposes, and has no associated functionality.';
 comment on column merlin.external_source.owner is e''
   'The user who uploaded the external source.';
-comment on column merlin.external_source.attributes is e''
-  'Additional data captured from the original external event, in key/pair form.';
 
 -- make sure new sources' source_type match that of their derivation group!
 create function merlin.external_source_type_matches_dg_on_add()
@@ -148,7 +137,6 @@ create table merlin.external_event (
     derivation_group_name text not null,
     start_time timestamp with time zone not null,
     duration interval not null,
-    attributes jsonb not null default '{}',
 
     constraint external_event_pkey
       primary key (key, source_key, derivation_group_name, event_type_name),
@@ -182,14 +170,12 @@ comment on column merlin.external_event.start_time is e''
   'The start time (in _plan_ time, NOT planner time), of the range that this source describes.';
 comment on column merlin.external_event.duration is e''
   'The span of time of this external event.';
-comment on column merlin.external_event.attributes is e''
-  'Additional data captured from the original external event, in key/pair form.';
 
 create trigger check_external_event_duration_is_nonnegative_trigger
 before insert or update on merlin.external_event
-  for each row
-  when (new.duration < '0')
-  execute function util_functions.raise_duration_is_negative();
+for each row
+when (new.duration < '0')
+execute function util_functions.raise_duration_is_negative();
 
 create function merlin.check_external_event_boundaries()
 returns trigger
@@ -292,7 +278,7 @@ create function merlin.external_source_pdg_ack_update()
   returns trigger
   language plpgsql as $$
 begin
-  update merlin.plan_derivation_group set acknowledged = false
+  update merlin.plan_derivation_group set "acknowledged" = false
   where plan_derivation_group.derivation_group_name = NEW.derivation_group_name;
   return new;
 end;
@@ -339,8 +325,7 @@ select distinct on (event_key, derivation_group_name)
     output.duration,
     output.start_time,
     output.source_range,
-    output.valid_at,
-    output.attributes
+    output.valid_at
 from (
   -- select the events from the sources and include them as they fit into the ranges determined by sub
   select
@@ -351,8 +336,7 @@ from (
     s.derivation_group_name,
     ee.start_time,
     s.source_range,
-    s.valid_at,
-    ee.attributes
+    s.valid_at
   from merlin.external_event ee
   join (
     with base_ranges as (
