@@ -83,3 +83,11 @@ from (
        where s.source_range @> ee.start_time
        order by valid_at desc
      ) output;
+
+-- create a unique index, which allows concurrent refreshes
+create unique index on merlin.derived_events (
+  event_key,
+  source_key,
+  derivation_group_name,
+  event_type_name
+);
