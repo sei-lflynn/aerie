@@ -3614,23 +3614,25 @@ public class PlanCollaborationTests {
     void checkFailsForNonexistentPlansOrModels() throws SQLException {
       final int existingPlanId = merlinHelper.insertPlan(missionModelId);
 
-      assertThrows(
-          SQLException.class,
-          () -> migratePlanToModel(-1, missionModelId),
-          "Plan -1 does not exist"
+      final var sqlEx = assertThrows(
+        SQLException.class,
+        () -> migratePlanToModel(-1, missionModelId)
       );
+      assertTrue(sqlEx.getMessage().contains("Plan -1 does not exist"), "bad error message, got " + sqlEx.getMessage());
 
-      assertThrows(
-          SQLException.class,
-          () -> migratePlanToModel(existingPlanId, -1),
-          "Model -1 does not exist"
-      );
 
-      assertThrows(
-          SQLException.class,
-          () -> migratePlanToModel(-1, -1),
-          "Plan -1 does not exist"
+      final var sqlEx2 = assertThrows(
+        SQLException.class,
+        () -> migratePlanToModel(existingPlanId, -1)
       );
+      assertTrue(sqlEx2.getMessage().contains("Model -1 does not exist"), "bad error message, got " + sqlEx2.getMessage());
+
+
+      final var sqlEx3 = assertThrows(
+        SQLException.class,
+        () -> migratePlanToModel(-1, -1)
+      );
+      assertTrue(sqlEx3.getMessage().contains("Plan -1 does not exist"), "bad error message, got " + sqlEx3.getMessage());
     }
 
 
@@ -3645,12 +3647,14 @@ public class PlanCollaborationTests {
       final int branchId = duplicatePlan(planId, "MultiTags Test");
       final int mergeRQ = createMergeRequest(planId, branchId);
 
-      assertThrows(
-          SQLException.class,
-          () -> migratePlanToModel(planId, modelId),
-          "Cannot migrate plan "+planId+": it has open merge requests"
+      final var sqlEx = assertThrows(
+        SQLException.class,
+        () -> migratePlanToModel(planId, modelId)
       );
-
+      assertTrue(
+          sqlEx.getMessage().contains("Cannot migrate plan "+planId+": it has open merge requests"),
+          "bad error message, got " + sqlEx.getMessage()
+      );
     }
 
     /**
