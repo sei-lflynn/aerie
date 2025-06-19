@@ -278,7 +278,7 @@ create function merlin.external_source_pdg_ack_update()
   returns trigger
   language plpgsql as $$
 begin
-  update merlin.plan_derivation_group set acknowledged = false
+  update merlin.plan_derivation_group set "acknowledged" = false
   where plan_derivation_group.derivation_group_name = NEW.derivation_group_name;
   return new;
 end;
