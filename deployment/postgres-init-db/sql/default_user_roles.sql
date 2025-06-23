@@ -14,6 +14,8 @@ set action_permissions = '{
       "create_expansion_rule": "NO_CHECK",
       "create_expansion_set": "NO_CHECK",
       "expand_all_activities": "NO_CHECK",
+      "expand_all_templates": "NO_CHECK",
+      "assign_activities_by_filter": "NO_CHECK",
       "insert_ext_dataset": "PLAN_OWNER",
       "resource_samples": "NO_CHECK",
       "schedule":"PLAN_OWNER_COLLABORATOR",
