@@ -311,7 +311,6 @@ alter table merlin.simulation_dataset
 
 
 -- Restore state of set_revisions_and_initialize_dataset_on_insert
-drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
 
 create or replace function merlin.set_revisions_and_initialize_dataset_on_insert()
 returns trigger
@@ -343,10 +342,6 @@ begin
 return new;
 end$$;
 
-create trigger set_revisions_and_initialize_dataset_on_insert_trigger
-  before insert on merlin.simulation_dataset
-  for each row
-  execute function merlin.set_revisions_and_initialize_dataset_on_insert();
 -- End of set_revisions_and_initialize_dataset_on_insert changes
 
 
@@ -565,4 +560,4 @@ comment on function merlin.create_snapshot(integer, text, text, text) is e''
 alter table merlin.plan_snapshot
   drop column model_id;
 
-call migrations.mark_migration_rolled_back('22');
+call migrations.mark_migration_rolled_back('23');

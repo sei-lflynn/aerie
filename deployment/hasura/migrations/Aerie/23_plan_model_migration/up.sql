@@ -239,8 +239,6 @@ end
 $$;
 
 -- Alter set_revisions_and_initialize_dataset_on_insert
--- drop trigger first & recreate after
-drop trigger set_revisions_and_initialize_dataset_on_insert_trigger on merlin.simulation_dataset;
 
 create or replace function merlin.set_revisions_and_initialize_dataset_on_insert()
 returns trigger
@@ -272,11 +270,6 @@ begin
   new.dataset_revision = dataset_ref.revision;
 return new;
 end$$;
-
-create trigger set_revisions_and_initialize_dataset_on_insert_trigger
-  before insert on merlin.simulation_dataset
-  for each row
-execute function merlin.set_revisions_and_initialize_dataset_on_insert();
 
 -- Modify simulation_dataset to include model_id
 alter table merlin.simulation_dataset
@@ -348,10 +341,10 @@ begin
   -- Create snapshot before migration
   perform merlin.create_snapshot(_plan_id,
                                  'Migration from model ' || _old_model_name || ' (id ' ||
-                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
-                                 ' on ' || NOW(),
+                                 _old_model_id || ') to model ' || _new_model_name || ' (id ' || _new_model_id ||
+                                 ') on ' || NOW(),
                                  'Automatic snapshot before migrating from model ' || _old_model_name || ' (id ' ||
-                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' (id ' || _new_model_id ||
                                  ') on ' || NOW(),
                                  _requester_username);
 
@@ -474,14 +467,14 @@ begin
     problematic as (
       select to_json(ad) as activity_directive, 'removed' as issue
       from merlin.activity_directive ad
-             join removed_names r on r.name = ad.name
+             join removed_names r on r.name = ad.type
       where ad.plan_id = _plan_id
 
       union all
 
       select to_json(ad) as activity_directive, 'altered' as issue
       from merlin.activity_directive ad
-             join altered_names a on a.name = ad.name
+             join altered_names a on a.name = ad.type
       where ad.plan_id = _plan_id
     )
   select json_agg(json_build_object(
@@ -523,4 +516,4 @@ alter table permissions.user_role_permission enable trigger validate_permissions
 
 -- #### END PERMISSIONS ####
 
-call migrations.mark_migration_applied('22');
+call migrations.mark_migration_applied('23');

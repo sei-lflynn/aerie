@@ -46,10 +46,10 @@ begin
   -- Create snapshot before migration
   perform merlin.create_snapshot(_plan_id,
                                  'Migration from model ' || _old_model_name || ' (id ' ||
-                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
-                                 ' on ' || NOW(),
+                                 _old_model_id || ') to model ' || _new_model_name || ' (id ' || _new_model_id ||
+                                 ') on ' || NOW(),
                                  'Automatic snapshot before migrating from model ' || _old_model_name || ' (id ' ||
-                                 _old_model_id || ') to model ' || _new_model_name || ' id(' || _new_model_id ||
+                                 _old_model_id || ') to model ' || _new_model_name || ' (id ' || _new_model_id ||
                                  ') on ' || NOW(),
                                  _requester_username);
 
@@ -172,14 +172,14 @@ begin
     problematic as (
       select to_json(ad) as activity_directive, 'removed' as issue
       from merlin.activity_directive ad
-             join removed_names r on r.name = ad.name
+             join removed_names r on r.name = ad.type
       where ad.plan_id = _plan_id
 
       union all
 
       select to_json(ad) as activity_directive, 'altered' as issue
       from merlin.activity_directive ad
-             join altered_names a on a.name = ad.name
+             join altered_names a on a.name = ad.type
       where ad.plan_id = _plan_id
     )
   select json_agg(json_build_object(
