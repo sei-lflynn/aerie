@@ -23,7 +23,6 @@ public class PlanMigrationTests {
   private MerlinDatabaseTestHelper merlinHelper;
 
   private Connection connection;
-  int fileId;
   int missionModelId;
   int planId;
   int modelFileId;
@@ -187,7 +186,7 @@ public class PlanMigrationTests {
     }
   }
 
-  private Boolean migratePlanToModel(final int planId, final int newModelId) throws SQLException{
+  private boolean migratePlanToModel(final int planId, final int newModelId) throws SQLException{
     try(final var statement = connection.createStatement()){
       final var res = statement.executeQuery(
           //language=sql
@@ -199,7 +198,7 @@ public class PlanMigrationTests {
     }
   }
 
-  private Integer getPlanModel(final int planId) throws SQLException {
+  private int getPlanModel(final int planId) throws SQLException {
     try (final var statement = connection.createStatement()) {
       final var res = statement.executeQuery(
           //language=sql
@@ -251,7 +250,7 @@ public class PlanMigrationTests {
   @Test
   void checkFailsForOpenMergeRequests() throws SQLException {
     final int branchId = duplicatePlan(planId, "MultiTags Test");
-    final int mergeRQ = createMergeRequest(planId, branchId);
+    createMergeRequest(planId, branchId);
 
     final var sqlEx = assertThrows(
       SQLException.class,
@@ -269,20 +268,16 @@ public class PlanMigrationTests {
   @Test
   void verifySnapshotCreated() throws SQLException {
 
-    try {
-      migratePlanToModel(planId, newModelId);
-      final List<Integer> snapshotIds = getLatestSnapshots(planId);
-      assertEquals(snapshotIds.size(), 1);
+    migratePlanToModel(planId, newModelId);
+    final List<Integer> snapshotIds = getLatestSnapshots(planId);
+    assertEquals(snapshotIds.size(), 1);
 
-      final String oldModelName = getModelName(modelId);
-      final String newModelName = getModelName(newModelId);
+    final String oldModelName = getModelName(modelId);
+    final String newModelName = getModelName(newModelId);
 
-      final String snapshotName = getSnapshotName(snapshotIds.get(0));
-      final String expected = "Migration from model %s (id %d) to model %s (id %d) on".formatted(oldModelName, modelId, newModelName, newModelId);
-      assertTrue(snapshotName.startsWith(expected), "Expected snapshot name to start with \"%s\" but snapshot name is \"%s\"".formatted(expected, snapshotName));
-    } catch (SQLException sqEx){
-      throw sqEx;
-    }
+    final String snapshotName = getSnapshotName(snapshotIds.get(0));
+    final String expected = "Migration from model %s (id %d) to model %s (id %d) on".formatted(oldModelName, modelId, newModelName, newModelId);
+    assertTrue(snapshotName.startsWith(expected), "Expected snapshot name to start with \"%s\" but snapshot name is \"%s\"".formatted(expected, snapshotName));
   }
 
   /**
@@ -290,13 +285,9 @@ public class PlanMigrationTests {
    */
   @Test
   void verifyMigrationWorks() throws SQLException {
-    try {
-      migratePlanToModel(planId, newModelId);
-      final int modelIdInDb = getPlanModel(planId);
-      assertEquals(modelIdInDb, newModelId);
-    } catch (SQLException sqEx){
-      throw sqEx;
-    }
+    migratePlanToModel(planId, newModelId);
+    final int modelIdInDb = getPlanModel(planId);
+    assertEquals(modelIdInDb, newModelId);
   }
 
 
@@ -305,15 +296,11 @@ public class PlanMigrationTests {
    */
   @Test
   void verifyCompatibilityCheckWorksForIdenticalModels() throws SQLException {
-    try {
-      Map<String, String> result = checkModelCompatibilityForPlan(planId, newModelId);
-      System.out.println(result);
-      assertEquals("[]", result.get("removed_activity_types"));
-      assertEquals("{}", result.get("modified_activity_types"));
-      assertEquals("[]", result.get("impacted_directives"));
-    } catch (SQLException sqEx){
-      throw sqEx;
-    }
+    Map<String, String> result = checkModelCompatibilityForPlan(planId, newModelId);
+    System.out.println(result);
+    assertEquals("[]", result.get("removed_activity_types"));
+    assertEquals("{}", result.get("modified_activity_types"));
+    assertEquals("[]", result.get("impacted_directives"));
   }
 
   /**
@@ -321,36 +308,30 @@ public class PlanMigrationTests {
    */
   @Test
   void verifyCompatibilityCheckWorksForDissimilarModels() throws SQLException {
-    try {
-      // Add ActivityToBeModified to both models, and modify its parameter schema in the second model
-      merlinHelper.insertActivityType(modelId, "ActivityToBeModified", "{\"counter\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}");
-      merlinHelper.insertActivityType(newModelId, "ActivityToBeModified", "{\"newName\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}");
+    // Add ActivityToBeModified to both models, and modify its parameter schema in the second model
+    merlinHelper.insertActivityType(modelId, "ActivityToBeModified", "{\"counter\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}");
+    merlinHelper.insertActivityType(newModelId, "ActivityToBeModified", "{\"newName\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}");
 
-      // Only add ActivityToBeRemoved to the first model
-      merlinHelper.insertActivityType(modelId, "ActivityToBeRemoved", "{}");
+    // Only add ActivityToBeRemoved to the first model
+    merlinHelper.insertActivityType(modelId, "ActivityToBeRemoved", "{}");
 
-      // Insert both activity types into the plan
-      merlinHelper.insertActivity(planId, "00:00:00", "ActivityToBeModified", "{\"counter\": 1}");
-      merlinHelper.insertActivity(planId, "00:00:00", "ActivityToBeRemoved", "{}");
+    // Insert both activity types into the plan
+    merlinHelper.insertActivity(planId, "00:00:00", "ActivityToBeModified", "{\"counter\": 1}");
+    merlinHelper.insertActivity(planId, "00:00:00", "ActivityToBeRemoved", "{}");
 
-      Map<String, String> result = checkModelCompatibilityForPlan(planId, newModelId);
+    Map<String, String> result = checkModelCompatibilityForPlan(planId, newModelId);
 
-      // Expecting to see ActivityToBeRemoved in the removed_activity_types, and ActivityToBeModified in the modified_activity_types
-      assertEquals("[\"ActivityToBeRemoved\"]", result.get("removed_activity_types"));
-      assertEquals("{ \"ActivityToBeModified\" : {\"old_parameter_schema\" : {\"counter\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}, \"new_parameter_schema\" : {\"newName\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}} }", result.get("modified_activity_types"));
+    // Expecting to see ActivityToBeRemoved in the removed_activity_types, and ActivityToBeModified in the modified_activity_types
+    assertEquals("[\"ActivityToBeRemoved\"]", result.get("removed_activity_types"));
+    assertEquals("{ \"ActivityToBeModified\" : {\"old_parameter_schema\" : {\"counter\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}, \"new_parameter_schema\" : {\"newName\": {\"order\": 0, \"schema\": {\"type\": \"int\"}}}} }", result.get("modified_activity_types"));
 
-      // Expecting to see two elements in the list of impacted directives corresponding to the two added above
-      List<ImpactedDirective> impacted = parseImpactedDirectivesJson(result.get("impacted_directives"));
-      assertEquals(2, impacted.size());
-      // verify ActivityToBeRemoved exists in array, and has reason "removed"
-      assertTrue(impacted.contains(new ImpactedDirective("ActivityToBeRemoved", "removed")));
-      // verify ActivityToBeModified exists in array, and has reason "altered"
-      assertTrue(impacted.contains(new ImpactedDirective("ActivityToBeModified", "altered")));
-    } catch (SQLException sqEx){
-      throw sqEx;
-    }
+    // Expecting to see two elements in the list of impacted directives corresponding to the two added above
+    List<ImpactedDirective> impacted = parseImpactedDirectivesJson(result.get("impacted_directives"));
+    assertEquals(2, impacted.size());
+    // verify ActivityToBeRemoved exists in array, and has reason "removed"
+    assertTrue(impacted.contains(new ImpactedDirective("ActivityToBeRemoved", "removed")));
+    // verify ActivityToBeModified exists in array, and has reason "altered"
+    assertTrue(impacted.contains(new ImpactedDirective("ActivityToBeModified", "altered")));
   }
-
-
-
+  
 }
