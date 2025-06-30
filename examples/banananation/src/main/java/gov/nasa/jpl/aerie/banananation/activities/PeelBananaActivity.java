@@ -5,6 +5,7 @@ import gov.nasa.jpl.aerie.contrib.metadata.Unit;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType.EffectModel;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export.Parameter;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 import gov.nasa.jpl.aerie.merlin.protocol.types.Duration;
 
 import static gov.nasa.jpl.aerie.merlin.protocol.types.Duration.HOURS;
@@ -20,6 +21,7 @@ import static gov.nasa.jpl.aerie.merlin.protocol.types.Duration.HOURS;
  * @contact Jane Doe
  */
 @ActivityType("PeelBanana")
+@Subsystem("Prepare")
 public final class PeelBananaActivity {
   private static final double MASHED_BANANA_AMOUNT = 1.0;
 
