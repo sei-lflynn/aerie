@@ -70,13 +70,17 @@ import java.util.stream.Collectors;
       activityTypes.add(this.parseActivityType(missionModelElement, activityTypeElement));
     }
 
+    final var subsystems = this.getSubsystems(missionModelElement);
+
     return new MissionModelRecord(
         missionModelElement,
         topLevelModel.type,
         topLevelModel.expectsPlanStart,
         topLevelModel.configurationType,
         typeRules,
-        activityTypes);
+        activityTypes
+        // subsystems TODO Add subsystems to MissionModelRecord
+    );
   }
 
   private record MissionModelTypeRecord(
@@ -333,6 +337,20 @@ import java.util.stream.Collectors;
     }
 
     return activityTypeElements;
+  }
+
+  private List<String> getSubsystems(final PackageElement missionModelElement) {
+    final var subsystems = new ArrayList<String>();
+
+    for (final var subsystemAnnotation : getRepeatableAnnotation(
+        missionModelElement,
+        MissionModel.WithSubsystem.class)) {
+      final var attribute = getAnnotationAttribute(subsystemAnnotation, "value").orElseThrow();
+
+      subsystems.add((String) attribute.getValue());
+    }
+
+    return subsystems;
   }
 
   private List<Pair<String, TypeElement>> getMetadataAnnotations(final PackageElement missionModelElement) throws InvalidMissionModelException {
