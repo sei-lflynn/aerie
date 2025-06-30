@@ -673,6 +673,11 @@ public class AnchorSchedulerTest {
     }
 
     @Override
+    public Optional<String> getSubsystem() {
+      return Optional.empty();
+    }
+
+    @Override
     public TaskFactory<Object> getTaskFactory(final Object o, final Object o2) {
       return executor -> new OneStepTask<>($ -> {
         $.emit(this, delayedActivityDirectiveInputTopic);
@@ -695,6 +700,11 @@ public class AnchorSchedulerTest {
     @Override
     public OutputType<Object> getOutputType() {
       return testModelOutputType;
+    }
+
+    @Override
+    public Optional<String> getSubsystem() {
+      return Optional.empty();
     }
 
     @Override

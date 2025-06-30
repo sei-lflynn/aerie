@@ -798,6 +798,17 @@ public record MissionModelGenerator(Elements elementUtils, Types typeUtils, Mess
             .build())
         .addMethod(
             MethodSpec
+                .methodBuilder("getSubsystem")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .returns(ParameterizedTypeName.get(
+                    ClassName.get(Optional.class),
+                    TypeName.get(String.class)
+                ))
+                .addStatement("return $T.empty()", Optional.class)
+                .build())
+        .addMethod(
+            MethodSpec
                 .methodBuilder("getInputTopic")
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(Override.class)
