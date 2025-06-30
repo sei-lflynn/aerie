@@ -16,7 +16,6 @@ import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
  *
  * This activity causes a piece of banana to be bitten off and consumed.
  *
- * @subsystem fruit
  * @contact John Doe
  */
 @ActivityType("BiteBanana")

@@ -17,7 +17,6 @@ import static gov.nasa.jpl.aerie.merlin.protocol.types.Duration.HOURS;
  * it to be bitten later. Peeling from the wrong end will cause some
  * amount of banana to become unbiteable.
  *
- * @subsystem fruit
  * @contact Jane Doe
  */
 @ActivityType("PeelBanana")

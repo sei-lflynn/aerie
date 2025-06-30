@@ -13,7 +13,6 @@ import static gov.nasa.jpl.aerie.merlin.framework.ModelActions.delay;
  *
  * Waits two days for bananas to ripen. Ripeness is not modelled.
  *
- * @subsystem fruit
  * @contact Jane Doe
  */
 @ActivityType("RipenBanana")
