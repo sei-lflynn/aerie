@@ -16,6 +16,7 @@ import gov.nasa.jpl.aerie.merlin.framework.ActivityMapper;
 import gov.nasa.jpl.aerie.merlin.framework.EmptyInputType;
 import gov.nasa.jpl.aerie.merlin.framework.ModelActions;
 import gov.nasa.jpl.aerie.merlin.framework.ValueMapper;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 import gov.nasa.jpl.aerie.merlin.processor.MissionModelProcessor;
 import gov.nasa.jpl.aerie.merlin.processor.Resolver;
 import gov.nasa.jpl.aerie.merlin.processor.TypePattern;
@@ -805,7 +806,17 @@ public record MissionModelGenerator(Elements elementUtils, Types typeUtils, Mess
                     ClassName.get(Optional.class),
                     TypeName.get(String.class)
                 ))
-                .addStatement("return $T.empty()", Optional.class)
+                .addCode(activityType.subsystem().map(
+                    subsystem -> CodeBlock
+                        .builder()
+                        .addStatement("return $T.of($S)", Optional.class, subsystem)
+                        .build()
+                ).orElseGet(
+                    () -> CodeBlock
+                        .builder()
+                        .addStatement("return $T.empty()", Optional.class)
+                        .build()
+                ))
                 .build())
         .addMethod(
             MethodSpec

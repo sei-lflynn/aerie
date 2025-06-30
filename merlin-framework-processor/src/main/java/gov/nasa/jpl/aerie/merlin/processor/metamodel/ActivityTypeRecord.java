@@ -10,6 +10,7 @@ import java.util.Optional;
 public record ActivityTypeRecord(
     String fullyQualifiedClass,
     String name,
+    Optional<String> subsystem,
     InputTypeRecord inputType,
     Optional<EffectModelRecord> effectModel
 ) {

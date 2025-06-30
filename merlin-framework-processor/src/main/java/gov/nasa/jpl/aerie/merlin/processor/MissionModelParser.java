@@ -8,6 +8,7 @@ import gov.nasa.jpl.aerie.merlin.framework.ValueMapper;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 import gov.nasa.jpl.aerie.merlin.processor.metamodel.ActivityTypeRecord;
 import gov.nasa.jpl.aerie.merlin.processor.metamodel.InputTypeRecord;
 import gov.nasa.jpl.aerie.merlin.processor.metamodel.EffectModelRecord;
@@ -399,6 +400,7 @@ import java.util.stream.Collectors;
   {
     final var fullyQualifiedClassName = activityTypeElement.getQualifiedName();
     final var name = this.getActivityTypeName(activityTypeElement);
+    final var subsystem = this.getSubsystem(activityTypeElement);
     final var mapper = this.getExportMapper(missionModelElement, activityTypeElement);
     final var parameters = this.getExportParameters(activityTypeElement);
     final var validations = this.getExportValidations(activityTypeElement, parameters);
@@ -427,6 +429,7 @@ import java.util.stream.Collectors;
     return new ActivityTypeRecord(
         fullyQualifiedClassName.toString(),
         name,
+        subsystem,
         new InputTypeRecord(name, activityTypeElement, parameters, validations, mapper, defaultsStyle),
         effectModel);
   }
@@ -502,6 +505,22 @@ import java.util.stream.Collectors;
             annotationMirror));
 
     return (String) nameAttribute.getValue();
+  }
+
+  private Optional<String> getSubsystem(final TypeElement activityTypeElement)
+  throws InvalidMissionModelException
+  {
+    final var annotationMirror = this.getAnnotationMirrorByType(activityTypeElement, Subsystem.class);
+
+    if (annotationMirror.isEmpty()) {
+      return Optional.empty();
+    }
+    final var nameAttribute = getAnnotationAttribute(annotationMirror.get(), "value")
+        .orElseThrow(() -> new InvalidMissionModelException(
+            "Unable to get value attribute of annotation",
+            activityTypeElement,
+            annotationMirror.get()));
+    return Optional.of((String) nameAttribute.getValue());
   }
 
   private MapperRecord getExportMapper(final PackageElement missionModelElement, final TypeElement exportTypeElement)
