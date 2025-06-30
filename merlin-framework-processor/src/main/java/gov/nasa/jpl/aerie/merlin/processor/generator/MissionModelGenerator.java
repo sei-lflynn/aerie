@@ -16,7 +16,6 @@ import gov.nasa.jpl.aerie.merlin.framework.ActivityMapper;
 import gov.nasa.jpl.aerie.merlin.framework.EmptyInputType;
 import gov.nasa.jpl.aerie.merlin.framework.ModelActions;
 import gov.nasa.jpl.aerie.merlin.framework.ValueMapper;
-import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 import gov.nasa.jpl.aerie.merlin.processor.MissionModelProcessor;
 import gov.nasa.jpl.aerie.merlin.processor.Resolver;
 import gov.nasa.jpl.aerie.merlin.processor.TypePattern;
@@ -172,6 +171,23 @@ public record MissionModelGenerator(Elements elementUtils, Types typeUtils, Mess
                         "return $T.$L",
                         missionModel.getTypesName(),
                         "directiveTypes")
+                    .build())
+            .addMethod(
+                MethodSpec
+                    .methodBuilder("getSubsystems")
+                    .addModifiers(Modifier.PUBLIC)
+//                    .addAnnotation(Override.class) TODO Add getSubsystems to ModelType interface
+                    .returns(
+                        ParameterizedTypeName.get(
+                            ClassName.get(List.class),
+                            ClassName.get(String.class)
+                        ))
+                    .addCode(CodeBlock.of("return List.of($L)",
+                                          missionModel
+                                              .subsystems()
+                                              .stream()
+                                              .map(s -> "\"" + s + "\"")
+                                              .collect(Collectors.joining(", "))) + ";")
                     .build())
             .addMethod(
                 MethodSpec

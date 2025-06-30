@@ -79,8 +79,8 @@ import java.util.stream.Collectors;
         topLevelModel.expectsPlanStart,
         topLevelModel.configurationType,
         typeRules,
-        activityTypes
-        // subsystems TODO Add subsystems to MissionModelRecord
+        activityTypes,
+        subsystems
     );
   }
 
