@@ -37,7 +37,9 @@ public interface DirectiveType<Model, Arguments, Result> {
   //   the output data is emitted.
   OutputType<Result> getOutputType();
 
-  Optional<String> getSubsystem(); // TODO make this default
+  default Optional<String> getSubsystem() {
+    return Optional.empty();
+  }
 
   /**
    * Initializes a {@link Task} operating on the given model given a directive instance.

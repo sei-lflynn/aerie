@@ -176,7 +176,7 @@ public record MissionModelGenerator(Elements elementUtils, Types typeUtils, Mess
                 MethodSpec
                     .methodBuilder("getSubsystems")
                     .addModifiers(Modifier.PUBLIC)
-//                    .addAnnotation(Override.class) TODO Add getSubsystems to ModelType interface
+                    .addAnnotation(Override.class)
                     .returns(
                         ParameterizedTypeName.get(
                             ClassName.get(List.class),

@@ -47,7 +47,8 @@ public final class MissionModelTest {
                   new Parameter("z", ValueSchema.INT),
                   new Parameter("vecs", ValueSchema.ofSeries(ValueSchema.ofSeries(ValueSchema.REAL)))),
               List.of(),
-              ValueSchema.ofStruct(Map.of())
+              ValueSchema.ofStruct(Map.of()),
+              Optional.empty()
           ));
 
     // WHEN
@@ -57,7 +58,8 @@ public final class MissionModelTest {
         new ActivityType(name,
                          specType.getInputType().getParameters(),
                          specType.getInputType().getRequiredParameters(),
-                         specType.getOutputType().getSchema())));
+                         specType.getOutputType().getSchema(),
+                         Optional.empty())));
 
     // THEN
     assertTrue(activityTypes.entrySet().containsAll(expectedTypes.entrySet()));
@@ -74,7 +76,8 @@ public final class MissionModelTest {
               new Parameter("z", ValueSchema.INT),
               new Parameter("vecs", ValueSchema.ofSeries(ValueSchema.ofSeries(ValueSchema.REAL)))),
           List.of(),
-          ValueSchema.ofStruct(Map.of())
+          ValueSchema.ofStruct(Map.of()),
+          Optional.empty()
       );
 
     // WHEN
@@ -87,7 +90,8 @@ public final class MissionModelTest {
         typeName,
         specType.getInputType().getParameters(),
         specType.getInputType().getRequiredParameters(),
-        specType.getOutputType().getSchema());
+        specType.getOutputType().getSchema(),
+        Optional.empty());
 
     // THEN
     assertEquals(expectedType, type);
@@ -109,7 +113,8 @@ public final class MissionModelTest {
             activityId,
             specType.getInputType().getParameters(),
             specType.getInputType().getRequiredParameters(),
-            specType.getOutputType().getSchema());
+            specType.getOutputType().getSchema(),
+            Optional.empty());
     });
   }
 
