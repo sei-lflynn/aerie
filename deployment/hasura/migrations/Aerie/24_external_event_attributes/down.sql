@@ -71,3 +71,5 @@ from (
   where s.source_range @> ee.start_time
   order by valid_at desc
 ) output;
+
+call migrations.mark_migration_rolled_back('24');

@@ -91,3 +91,5 @@ create unique index on merlin.derived_events (
   derivation_group_name,
   event_type_name
 );
+
+call migrations.mark_migration_applied('24');
