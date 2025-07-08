@@ -1,8 +1,8 @@
-alter table merlin.external_source_type add column attribute_schema jsonb not null default '{}';
+alter table merlin.external_source_type add column attribute_schema jsonb not null default '{ "type": "object", "required": [], "properties": {} }';
 comment on column merlin.external_source_type.attribute_schema is e''
   'The JSON schema used to validate attributes for sources using this source type.';
 
-alter table merlin.external_event_type add column attribute_schema jsonb not null default '{}';
+alter table merlin.external_event_type add column attribute_schema jsonb not null default '{ "type": "object", "required": [], "properties": {} }';
 comment on column merlin.external_event_type.attribute_schema is e''
   'The JSON schema used to validate attributes for events using this event type.';
 

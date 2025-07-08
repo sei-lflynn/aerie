@@ -1,6 +1,6 @@
 create table merlin.external_event_type (
     name text not null,
-    attribute_schema jsonb not null default '{}',
+    attribute_schema jsonb not null default '{ "type": "object", "required": [], "properties": {} }',
 
     constraint external_event_type_pkey
       primary key (name)
