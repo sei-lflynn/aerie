@@ -295,8 +295,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     if(Files.isSameFile(oldPath, oldRepoPath)) throw new WorkspaceFileOpException("Cannot move the workspace root directory.");
 
     // Do not permit a directory to replace the root directory
-    // TODO: maybe we want to allow this? This check fails anyways because newPath is not a real file at this point
-    // if(Files.isSameFile(newPath, newRepoPath)) return false;
+    if(Files.isSameFile(newPath, oldRepoPath)) throw new WorkspaceFileOpException("Cannot replace the workspace root directory.");
 
     return oldPath.toFile().renameTo(newPath.toFile());
   }
