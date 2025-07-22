@@ -24,7 +24,6 @@ export type ConsoleOutput = {
 export type ActionConfig = {
   ACTION_FILE_STORE: string;
   SEQUENCING_FILE_STORE: string;
-  WORKSPACE_BASE_URL: string;
 };
 
 export type ActionTask = {

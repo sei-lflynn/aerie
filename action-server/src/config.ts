@@ -14,7 +14,6 @@ export interface Config {
   PORT: string;
   STORAGE: string;
   SEQUENCING_LOCAL_STORE: string;
-  WORKSPACE_BASE_URL: string;
 }
 
 export const configuration = (): Config => {
@@ -36,6 +35,5 @@ export const configuration = (): Config => {
     PORT: "27186",
     STORAGE: env.STORAGE ?? "local",
     SEQUENCING_LOCAL_STORE: env.SEQUENCING_LOCAL_STORE ?? "/usr/src/app/sequencing_file_store",
-    WORKSPACE_BASE_URL: env.WORKSPACE_BASE_URL ?? "http://aerie_workspace:28000",
   };
 };

@@ -58,7 +58,7 @@ function getGlobals() {
   return aerieGlobal;
 }
 
-const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE, WORKSPACE_BASE_URL} = configuration();
+const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE} = configuration();
 
 export const jsExecute = async (
   code: string,
@@ -81,7 +81,7 @@ export const jsExecute = async (
   try {
     vm.runInContext(code, context);
     // todo: main runs outside of VM - is that OK?
-    const actionConfig: ActionConfig = { ACTION_FILE_STORE: ACTION_LOCAL_STORE, SEQUENCING_FILE_STORE: SEQUENCING_LOCAL_STORE, WORKSPACE_BASE_URL: WORKSPACE_BASE_URL };
+    const actionConfig: ActionConfig = { ACTION_FILE_STORE: ACTION_LOCAL_STORE, SEQUENCING_FILE_STORE: SEQUENCING_LOCAL_STORE };
     const actionsAPI = new ActionsAPI(client, workspaceId, actionConfig);
     const results = await context.main(parameters, settings, actionsAPI);
 
