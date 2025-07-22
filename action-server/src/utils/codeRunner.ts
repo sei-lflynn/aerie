@@ -58,7 +58,7 @@ function getGlobals() {
   return aerieGlobal;
 }
 
-const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE} = configuration();
+const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE } = configuration();
 
 export const jsExecute = async (
   code: string,
