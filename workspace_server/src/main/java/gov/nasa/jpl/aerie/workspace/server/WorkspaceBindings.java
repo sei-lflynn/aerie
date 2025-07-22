@@ -234,7 +234,7 @@ public class WorkspaceBindings implements Plugin {
     if ("file".equalsIgnoreCase(type)) {
       // Reject the request if the file isn't provided.
       final var file = context.uploadedFile("file");
-      if (file == null) {
+      if (file == null || !pathInfo.fileName().equals(file.filename())) {
         context.status(400).result("No file provided with the name " + pathInfo.fileName());
         return;
       }
