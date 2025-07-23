@@ -215,7 +215,7 @@ public class WorkspaceBindings implements Plugin {
       type = context.queryParamAsClass("type", String.class)
                     .allowNullable()
                     .check(Objects::nonNull, "'type' must be provided.")
-                    .check(ts -> ts == null || ts.equalsIgnoreCase("file") || ts.equalsIgnoreCase("directory"),
+                    .check(ts -> "file".equalsIgnoreCase(ts) || "directory".equalsIgnoreCase(ts),
                            "'type' must be one of 'file' or 'directory'")
                     .get();
       overwrite = context.queryParamAsClass("overwrite", Boolean.class).getOrDefault(false);
