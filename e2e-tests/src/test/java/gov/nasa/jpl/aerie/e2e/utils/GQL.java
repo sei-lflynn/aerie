@@ -208,6 +208,14 @@ public enum GQL {
         key
       }
     }"""),
+  DELETE_EXTERNAL_EVENTS_BY_SOURCE("""
+   mutation DeleteExternalEventsBySource($externalSourceKey: String!, $derivationGroupName: String!) {
+     deleteExternalEventsBySource: delete_external_event(where: {_and: [{source_key: {_eq: $externalSourceKey}}, {derivation_group_name: {_eq: $derivationGroupName}}]}) {
+       returning {
+         key
+       }
+     }
+   }"""),
   DELETE_EXTERNAL_SOURCE_TYPE("""
     mutation DeleteExternalSourceType($name: String!) {
       deleteExternalSourceType: delete_external_source_type_by_pk(name: $name) {

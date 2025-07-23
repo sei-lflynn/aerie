@@ -7,6 +7,7 @@ import gov.nasa.jpl.aerie.constraints.model.DiscreteProfile;
 import gov.nasa.jpl.aerie.constraints.model.LinearProfile;
 import gov.nasa.jpl.aerie.json.BasicParsers;
 import gov.nasa.jpl.aerie.json.JsonParser;
+import gov.nasa.jpl.aerie.merlin.driver.json.SerializedValueJsonParser;
 import gov.nasa.jpl.aerie.types.ActivityInstance;
 import gov.nasa.jpl.aerie.types.ActivityInstanceId;
 import gov.nasa.jpl.aerie.merlin.driver.SimulationResults;
@@ -46,7 +47,6 @@ import gov.nasa.jpl.aerie.scheduler.server.models.UnwrappedProfileSet;
 import gov.nasa.jpl.aerie.types.ActivityDirective;
 import gov.nasa.jpl.aerie.types.ActivityDirectiveId;
 import gov.nasa.jpl.aerie.types.MissionModelId;
-import gov.nasa.jpl.aerie.types.SerializedActivity;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 
@@ -72,8 +72,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1145,23 +1143,33 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
 
   @Override
   public Map<String, List<ExternalEvent>> getExternalEvents(final PlanId planId, final Instant horizonStart)
-  throws MerlinServiceException, IOException {
+  throws MerlinServiceException, IOException, InvalidEntityException
+  {
     final var derivationGroupsRequest = """
-        query DerivationGroupsForPlan {
-          plan_derivation_group(where: {plan_id: {_eq: %d}}) {
+        query DerivationGroupsForPlan($planId: Int!) {
+          plan_derivation_group(where: {plan_id: {_eq: $planId}}) {
             derivation_group_name
           }
         }
-        """.formatted(planId.id());
-    final JsonObject derivationGroupsResponse = postRequest(derivationGroupsRequest).get();
-    final var derivationGroups = Json.createArrayBuilder(
-        derivationGroupsResponse.getJsonObject("data").getJsonArray("plan_derivation_group")
-        .stream().map($ -> $.asJsonObject().getString("derivation_group_name")).toList()
-    ).build();
+        """;
+    final JsonObject derivationGroupsResponse = postRequest(
+        derivationGroupsRequest,
+        Json.createObjectBuilder().add("planId", planId.id()).build()).get();
+    final var derivationGroups = Json
+        .createObjectBuilder()
+        .add("derivationGroups", Json.createArrayBuilder(
+            derivationGroupsResponse
+                .getJsonObject("data")
+                .getJsonArray("plan_derivation_group")
+                .stream()
+                .map($ -> $.asJsonObject().getString("derivation_group_name"))
+                .toList()
+    ).build()).build();
 
     final var eventsRequest = """
-        query DerivedEventsForPlan {
-          derived_events(where: {derivation_group_name: {_in: %s}}) {
+        query DerivedEventsForPlan($derivationGroups: [String!]!) {
+          derived_events(where: {derivation_group_name: {_in: $derivationGroups}}) {
+            attributes
             source_key
             event_type_name
             event_key
@@ -1170,9 +1178,13 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
             source_range
             start_time
             valid_at
+            external_source {
+              attributes
+            }
           }
-        }""".formatted(derivationGroups);
-    final JsonObject eventsResponse = postRequest(eventsRequest).get();
+        }""";
+
+    final JsonObject eventsResponse = postRequest(eventsRequest, derivationGroups).get();
 
     final var data = eventsResponse.getJsonObject("data").getJsonArray("derived_events");
     final var unorganized =  parseExternalEvents(data, horizonStart);
@@ -1308,7 +1320,9 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
     return ResourceProfile.of(type, segments);
   }
 
-  private List<ExternalEvent> parseExternalEvents(final JsonArray eventsJson, final Instant horizonStart) {
+  private List<ExternalEvent> parseExternalEvents(final JsonArray eventsJson, final Instant horizonStart)
+  throws InvalidEntityException
+  {
     final var result = new ArrayList<ExternalEvent>();
     for (final var eventJson : eventsJson) {
       final var e = eventJson.asJsonObject();
@@ -1316,13 +1330,28 @@ public record GraphQLMerlinDatabaseService(URI merlinGraphqlURI, String hasuraGr
           horizonStart.until(ZonedDateTime.parse(e.getString("start_time")).toInstant(), ChronoUnit.MICROS)
       );
       final var end = start.plus(Duration.fromString(e.getString("duration")));
+
+      final var eventAttributes = new SerializedValueJsonParser()
+          .parse(e.getJsonObject("attributes"))
+          .getSuccessOrThrow(reason -> new InvalidEntityException(List.of(reason)))
+          .asMap()
+          .get();
+
+      final var sourceAttributes = new SerializedValueJsonParser()
+          .parse(e.getJsonObject("external_source").getJsonObject("attributes"))
+          .getSuccessOrThrow(reason -> new InvalidEntityException(List.of(reason)))
+          .asMap()
+          .get();
+
       result.add(new ExternalEvent(
           e.getString("event_key"),
           e.getString("event_type_name"),
           new ExternalSource(
               e.getString("source_key"),
-              e.getString("derivation_group_name")
+              e.getString("derivation_group_name"),
+              sourceAttributes
           ),
+          eventAttributes,
           Interval.between(start, end)
       ));
     }
