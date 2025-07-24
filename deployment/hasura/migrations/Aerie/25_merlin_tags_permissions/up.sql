@@ -16,4 +16,4 @@ do $$
   end
 $$;
 
-call migrations.mark_migration_applied('24');
+call migrations.mark_migration_applied('25');

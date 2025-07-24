@@ -16,4 +16,4 @@ do $$
   end
 $$;
 
-call migrations.mark_migration_rolled_back('24');
+call migrations.mark_migration_rolled_back('25');
