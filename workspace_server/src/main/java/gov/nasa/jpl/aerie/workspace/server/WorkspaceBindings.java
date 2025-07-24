@@ -224,7 +224,7 @@ public class WorkspaceBindings implements Plugin {
       return;
     }
 
-    // Report a "Conflict" status if the file already exists, is a file and not a directory, and "overwrite" is false
+    // Report a "Conflict" status if the file already exists and "overwrite" is false
     if(workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath)
        && !overwrite) {
       context.status(409).result(pathInfo.fileName() + " already exists.");

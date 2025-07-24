@@ -161,6 +161,13 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   }
 
   @Override
+  public boolean moveFile(final int workspaceId, final Path oldFilePath, final Path newFilePath)
+  throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException
+  {
+    return moveFile(workspaceId, oldFilePath, workspaceId, newFilePath);
+  }
+
+  @Override
   public boolean copyFile(final int sourceWorkspaceId, final Path sourceFilePath, final int destWorkspaceId, final Path destFilePath)
   throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException
   {
