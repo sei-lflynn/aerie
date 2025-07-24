@@ -14,6 +14,7 @@ import io.javalin.validation.ValidationException;
 import javax.json.Json;
 import javax.json.JsonException;
 import javax.json.JsonObject;
+import javax.json.stream.JsonParsingException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -255,7 +256,7 @@ public class WorkspaceBindings implements Plugin {
     }
   }
 
-  private void post(Context context) throws IOException, SQLException, NoSuchWorkspaceException {
+  private void post(Context context) {
 
     try (final var bodyReader = Json.createReader(new StringReader(context.body()))) {
       final var bodyJson = bodyReader.readObject();
@@ -269,9 +270,28 @@ public class WorkspaceBindings implements Plugin {
       }
 
       context.status(200).result("Success");
-    } catch (Exception e) {
+
+    } catch (JsonException e) {
+      // Malformed JSON in request body
+      context.status(400).result("Malformed JSON: " + e.getMessage());
+
+    } catch (IllegalArgumentException e) {
+      // Client passed unsupported keys or invalid logic
+      context.status(400).result("Invalid request: " + e.getMessage());
+
+    } catch (NoSuchWorkspaceException e) {
+      // Domain-specific error: workspace doesn't exist
+      context.status(404).result("Workspace not found: " + e.getMessage());
+
+    } catch (IOException | SQLException e) {
+      // Server-side failure, log and return 500
       e.printStackTrace();
-      context.status(400).result("Error: " + e.getMessage() != null ? e.getMessage() : "Invalid request");
+      context.status(500).result("Internal server error while processing the request.");
+
+    } catch (Exception e) {
+      // Catch-all for unexpected issues
+      e.printStackTrace();
+      context.status(500).result("Unexpected error: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
     }
   }
 
