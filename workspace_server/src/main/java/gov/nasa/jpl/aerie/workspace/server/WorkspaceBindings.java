@@ -275,26 +275,26 @@ public class WorkspaceBindings implements Plugin {
     }
   }
 
-  private record CopyMoveValid(boolean valid, int status, String message){};
+  private record CopyMoveValid(int status, String message){};
 
   private CopyMoveValid isCopyOrMoveValid(int sourceWorkspace, Path sourceFile, int targetWorkspace, Path targetFile)
   throws NoSuchWorkspaceException {
     // Reject if source does not exist
     if (!workspaceService.checkFileExists(sourceWorkspace, sourceFile)) {
-      return new CopyMoveValid(false, 404, sourceFile + " does not exist in the source workspace.");
+      return new CopyMoveValid(404, sourceFile + " does not exist in the source workspace.");
     }
 
     // Reject if target workspace does not exist
     if (!workspaceService.checkFileExists(targetWorkspace, Path.of("/"))) {
-      return new CopyMoveValid(false, 404, "Target workspace with ID "+targetWorkspace+" does not exist.");
+      return new CopyMoveValid(404, "Target workspace with ID "+targetWorkspace+" does not exist.");
     }
 
     // Return "Conflicted" if destination exists
     if (workspaceService.checkFileExists(targetWorkspace, targetFile)) {
-      return new CopyMoveValid(false, 409, targetFile + " already exists");
+      return new CopyMoveValid(409, targetFile + " already exists");
     }
 
-    return new CopyMoveValid(true, 0, "");
+    return new CopyMoveValid(200, "Success");
   }
 
   private void handleMove(Context context, JsonObject bodyJson)
@@ -309,7 +309,7 @@ public class WorkspaceBindings implements Plugin {
     }
 
     CopyMoveValid validMove = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
-    if (!validMove.valid) {
+    if (validMove.status != 200) {
       context.status(validMove.status).result(validMove.message);
       return;
     }
@@ -353,7 +353,7 @@ public class WorkspaceBindings implements Plugin {
     }
 
     CopyMoveValid validCopy = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
-    if (!validCopy.valid) {
+    if (validCopy.status != 200) {
         context.status(validCopy.status).result(validCopy.message);
         return;
     }
