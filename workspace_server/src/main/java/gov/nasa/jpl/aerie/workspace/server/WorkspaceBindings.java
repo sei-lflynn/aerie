@@ -4,7 +4,6 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import gov.nasa.jpl.aerie.workspace.server.postgres.NoSuchWorkspaceException;
 import io.javalin.Javalin;
 import io.javalin.apibuilder.ApiBuilder;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ContentType;
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
@@ -15,7 +14,6 @@ import javax.json.Json;
 import javax.json.JsonException;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
-import javax.json.stream.JsonParsingException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -315,23 +313,28 @@ public class WorkspaceBindings implements Plugin {
     }
   }
 
-  private record CopyMoveValid(int status, String message){};
+  private record CopyMoveValid(int status, String message){}
 
-  private CopyMoveValid isCopyOrMoveValid(int sourceWorkspace, Path sourceFile, int targetWorkspace, Path targetFile)
-  throws NoSuchWorkspaceException {
-    // Reject if source does not exist
-    if (!workspaceService.checkFileExists(sourceWorkspace, sourceFile)) {
-      return new CopyMoveValid(404, sourceFile + " does not exist in the source workspace.");
+  private CopyMoveValid isCopyOrMoveValid(int sourceWorkspace, Path sourceFile, int targetWorkspace, Path targetFile) {
+    try {
+      // Return "Resource Not Found" if sourceFile does not exist
+      if (!workspaceService.checkFileExists(sourceWorkspace, sourceFile)) {
+        return new CopyMoveValid(404, sourceFile + " does not exist in the source workspace.");
+      }
+    } catch (NoSuchWorkspaceException se) {
+      // Return "Resource Not Found" if source workspace does not exist
+      return new CopyMoveValid(404, "Source workspace with ID "+sourceWorkspace+" does not exist.");
     }
 
-    // Reject if target workspace does not exist
-    if (!workspaceService.checkFileExists(targetWorkspace, Path.of("/"))) {
+    try {
+      // Return "Conflicted" if destination exists
+      if (workspaceService.checkFileExists(targetWorkspace, targetFile)) {
+        return new CopyMoveValid(409, targetFile + " already exists");
+      }
+    }
+    catch (NoSuchWorkspaceException se) {
+      // Return "Resource not found" if target workspace does not exist
       return new CopyMoveValid(404, "Target workspace with ID "+targetWorkspace+" does not exist.");
-    }
-
-    // Return "Conflicted" if destination exists
-    if (workspaceService.checkFileExists(targetWorkspace, targetFile)) {
-      return new CopyMoveValid(409, targetFile + " already exists");
     }
 
     return new CopyMoveValid(200, "Success");
