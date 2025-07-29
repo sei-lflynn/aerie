@@ -143,7 +143,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   {
     final var oldRepoPath = postgresRepository.workspaceRootPath(oldWorkspaceId);
     final var oldPath = oldRepoPath.resolve(oldFilePath);
-    final var newRepoPath = postgresRepository.workspaceRootPath(newWorkspaceId);
+    final var newRepoPath = (oldWorkspaceId == newWorkspaceId) ? oldRepoPath : postgresRepository.workspaceRootPath(newWorkspaceId);
     final var newPath = newRepoPath.resolve(newFilePath);
     boolean success = true;
 
@@ -161,13 +161,6 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     }
 
     return success && oldPath.toFile().renameTo(newPath.toFile());
-  }
-
-  @Override
-  public boolean moveFile(final int workspaceId, final Path oldFilePath, final Path newFilePath)
-  throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException
-  {
-    return moveFile(workspaceId, oldFilePath, workspaceId, newFilePath);
   }
 
   @Override

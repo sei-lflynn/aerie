@@ -71,16 +71,6 @@ public interface WorkspaceService {
   boolean moveFile(final int oldWorkspaceId, final Path oldFilePath, final int newWorkspaceId, final Path newFilePath)
   throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException;
 
-  /**
-   * Move a file within a workspace.
-   * @param workspaceId the id of the source workspace
-   * @param oldFilePath the path, relative to the source workspace root, that the file is currently at
-   * @param newFilePath the new path of the file, relative to the workspace root
-   * @return true if the file was moved, false otherwise
-   */
-  boolean moveFile(final int workspaceId, final Path oldFilePath, final Path newFilePath)
-  throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException;
-
 
   /**
    * Delete a file from a workspace
