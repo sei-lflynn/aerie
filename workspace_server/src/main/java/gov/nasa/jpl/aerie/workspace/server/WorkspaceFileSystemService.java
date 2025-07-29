@@ -16,8 +16,11 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WorkspaceFileSystemService implements WorkspaceService {
+  private static final Logger logger = LoggerFactory.getLogger(WorkspaceFileSystemService.class);
   final WorkspacePostgresRepository postgresRepository;
 
   public WorkspaceFileSystemService(final WorkspacePostgresRepository postgresRepository) {
@@ -201,7 +204,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
 
       return true;
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error("Error copying file", e);
       return false;
     }
   }
@@ -219,7 +222,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     try {
       // Validate source exists and is a directory
       if (!Files.exists(sourcePath)) throw new WorkspaceFileOpException("Source directory \"%s\" in workspace %d does not exist.".formatted(sourceFilePath, sourceWorkspaceId));
-      if (!Files.isDirectory(sourcePath)) throw new WorkspaceFileOpException("Source directory \"%s\" in workspace %d is not actually a directory. This is a bug.".formatted(sourceFilePath, sourceWorkspaceId));
+      if (!Files.isDirectory(sourcePath)) throw new WorkspaceFileOpException("Source directory \"%s\" in workspace %d is not actually a directory.".formatted(sourceFilePath, sourceWorkspaceId));
 
       // Do not copy if destination already exists
       if (Files.exists(destPath)) throw new WorkspaceFileOpException("Destination directory \"%s\" in workspace %d already exists.".formatted(destFilePath, destWorkspaceId));
@@ -245,7 +248,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
 
       return true;
     } catch (IOException | UncheckedIOException e) {
-      e.printStackTrace();
+      logger.error("Error copying directory", e);
       return false;
     }
   }
@@ -298,11 +301,13 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     final var newRepoPath = postgresRepository.workspaceRootPath(newWorkspaceId);
     final var newPath = newRepoPath.resolve(newDirectoryPath);
 
-    // Do not permit the workspace's root directory to be moved
+    // Do not permit the source workspace's root directory to be moved
     if(Files.isSameFile(oldPath, oldRepoPath)) throw new WorkspaceFileOpException("Cannot move the workspace root directory.");
 
-    // Do not permit a directory to replace the root directory
-    if(Files.isSameFile(newPath, oldRepoPath)) throw new WorkspaceFileOpException("Cannot replace the workspace root directory.");
+    // Do not permit a moved directory to replace the target workspace's root directory
+    if (Files.exists(newPath) && Files.isSameFile(newPath, newRepoPath)) {
+      throw new WorkspaceFileOpException("Cannot replace the workspace root directory.");
+    }
 
     return oldPath.toFile().renameTo(newPath.toFile());
   }

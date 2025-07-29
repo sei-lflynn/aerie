@@ -23,10 +23,13 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.javalin.apibuilder.ApiBuilder.path;
 
 public class WorkspaceBindings implements Plugin {
+  private static final Logger logger = LoggerFactory.getLogger(WorkspaceBindings.class);
   private final JWTService jwtService;
   private final WorkspaceService workspaceService;
 
@@ -302,12 +305,12 @@ public class WorkspaceBindings implements Plugin {
 
     } catch (IOException | SQLException e) {
       // Internal server error
-      e.printStackTrace();
-      context.status(500).result("Internal server error while processing the request.");
+      logger.error("Error processing workspace request", e);
+      context.status(500).result("Internal server error while processing the request: " + e.getMessage());
 
     } catch (Exception e) {
       // Catch-all for unexpected issues
-      e.printStackTrace();
+      logger.error("Unexpected error processing workspace request", e);
       context.status(500).result("Unexpected error: " + (e.getMessage() != null ? e.getMessage() : "Unknown error\n\n" + helpText));
     }
   }
