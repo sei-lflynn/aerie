@@ -12,6 +12,8 @@ import io.javalin.validation.ValidationException;
 
 import javax.json.Json;
 import javax.json.JsonException;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -19,10 +21,13 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.javalin.apibuilder.ApiBuilder.path;
 
 public class WorkspaceBindings implements Plugin {
+  private static final Logger logger = LoggerFactory.getLogger(WorkspaceBindings.class);
   private final JWTService jwtService;
   private final WorkspaceService workspaceService;
 
@@ -213,17 +218,18 @@ public class WorkspaceBindings implements Plugin {
       type = context.queryParamAsClass("type", String.class)
                     .allowNullable()
                     .check(Objects::nonNull, "'type' must be provided.")
-                    .check(ts -> ts.equalsIgnoreCase("file") || ts.equalsIgnoreCase("directory"),
+                    .check(ts -> "file".equalsIgnoreCase(ts) || "directory".equalsIgnoreCase(ts),
                            "'type' must be one of 'file' or 'directory'")
                     .get();
       overwrite = context.queryParamAsClass("overwrite", Boolean.class).getOrDefault(false);
     } catch (ValidationException ve) {
-      context.status(400).result(ve.getMessage());
+      context.status(400).result(ve.getMessage() != null ? ve.getMessage() : "Invalid request");
       return;
     }
 
-    // Report a "Conflict" status if the object already exists and "overwrite" is false
-    if(workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath) && !overwrite) {
+    // Report a "Conflict" status if the file already exists and "overwrite" is false
+    if(workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath)
+       && !overwrite) {
       context.status(409).result(pathInfo.fileName() + " already exists.");
       return;
     }
@@ -252,57 +258,176 @@ public class WorkspaceBindings implements Plugin {
     }
   }
 
-  private void post(Context context) throws NoSuchWorkspaceException, IOException {
-    final var pathInfo = PathInformation.of(context);
+  private void post(Context context) {
 
-    try (final var bodyReader = Json.createReader(new StringReader(context.body()))) {
-      final var bodyJson = bodyReader.readObject();
+    final String helpText = """
+    Expected JSON body with one of the following formats:
 
-      // Parse what the post request is for
-      final var moveRq = bodyJson.containsKey("moveTo");
+    To move a file:
+    {
+      "moveTo": "<destination-path>",
+      "toWorkspace": <new-workspace-id>, (optional)
+    }
 
-      // Perform the request
-      if (moveRq) {
-        final var destination = Path.of(bodyJson.getString("moveTo"));
+    To copy a file:
+    {
+      "copyTo": "<destination-path>",
+      "toWorkspace": <new-workspace-id>, (optional)
+    }
+    """;
 
-        // Reject if source does not exist
-        if (!workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath)) {
-          context.status(404).result(pathInfo.fileName() + " does not exist in the workspace.");
-          return;
-        }
-        // Return "Conflicted" if destination exists
-        if (workspaceService.checkFileExists(pathInfo.workspaceId, destination)) {
-          context.status(409).result(destination.getFileName().toString() + " already exists");
-          return;
-        }
+    try (JsonReader bodyReader = Json.createReader(new StringReader(context.body()))) {
+      JsonObject bodyJson = bodyReader.readObject();
 
-        if (workspaceService.isDirectory(pathInfo.workspaceId, pathInfo.filePath())) {
-          if (workspaceService.moveDirectory(pathInfo.workspaceId, pathInfo.filePath, destination)) {
-            context.status(200);
-          } else {
-            context.status(500).result("Unable to move directory.");
-          }
-        } else {
-          try {
-            if (workspaceService.moveFile(pathInfo.workspaceId, pathInfo.filePath, destination)) {
-              context.status(200);
-            } else {
-              context.status(500).result("Unable to move file.");
-            }
-          } catch (SQLException e) {
-            context.status(500).result("Unable to move file. " + e.getMessage());
-          }
-        }
+      if (bodyJson.containsKey("moveTo")) {
+        handleMove(context, bodyJson);
+      } else if (bodyJson.containsKey("copyTo")) {
+        handleCopy(context, bodyJson);
+      } else {
+        context.status(400).result("Invalid request. Must include either 'moveTo' or 'copyTo' key.\n\n" + helpText);
       }
-    } catch (JsonException je) {
-      final String helpText = """
-          {
-            "moveTo": text  // Path to where in the workspace the file should be moved to
-          }
-          """;
-      context.status(400).result("Request body is malformed. Request body format is:\n" + helpText);
+
+      context.status(200).result("Success");
+
+    } catch (JsonException e) {
+      // Malformed JSON in request body
+      context.status(400).result("Malformed JSON: " + e.getMessage() + "\n\n" + helpText);
+
+    } catch (IllegalArgumentException e) {
+      // Logical errors or unsupported operations
+      context.status(400).result("Invalid request: " + e.getMessage() + "\n\n" + helpText);
+
+    } catch (NoSuchWorkspaceException e) {
+      // Workspace not found
+      context.status(404).result("Workspace not found: " + e.getMessage());
+
+    } catch (IOException | SQLException e) {
+      // Internal server error
+      logger.error("Error processing workspace request", e);
+      context.status(500).result("Internal server error while processing the request: " + e.getMessage());
+
+    } catch (Exception e) {
+      // Catch-all for unexpected issues
+      logger.error("Unexpected error processing workspace request", e);
+      context.status(500).result("Unexpected error: " + (e.getMessage() != null ? e.getMessage() : "Unknown error\n\n" + helpText));
     }
   }
+
+  private record CopyMoveValid(int status, String message){}
+
+  private CopyMoveValid isCopyOrMoveValid(int sourceWorkspace, Path sourceFile, int targetWorkspace, Path targetFile) {
+    try {
+      // Return "Resource Not Found" if sourceFile does not exist
+      if (!workspaceService.checkFileExists(sourceWorkspace, sourceFile)) {
+        return new CopyMoveValid(404, sourceFile + " does not exist in the source workspace.");
+      }
+    } catch (NoSuchWorkspaceException se) {
+      // Return "Resource Not Found" if source workspace does not exist
+      return new CopyMoveValid(404, "Source workspace with ID "+sourceWorkspace+" does not exist.");
+    }
+
+    try {
+      // Return "Conflicted" if destination exists
+      if (workspaceService.checkFileExists(targetWorkspace, targetFile)) {
+        return new CopyMoveValid(409, targetFile + " already exists");
+      }
+    }
+    catch (NoSuchWorkspaceException se) {
+      // Return "Resource not found" if target workspace does not exist
+      return new CopyMoveValid(404, "Target workspace with ID "+targetWorkspace+" does not exist.");
+    }
+
+    return new CopyMoveValid(200, "Success");
+  }
+
+  private void handleMove(Context context, JsonObject bodyJson)
+  throws IOException, NoSuchWorkspaceException, SQLException {
+    final var pathInfo = PathInformation.of(context);
+
+    final var destination = Path.of(bodyJson.getString("moveTo"));
+    int sourceWorkspace = pathInfo.workspaceId;
+    int targetWorkspace = pathInfo.workspaceId;  // default to same workspace unless toWorkspace is included
+    if (bodyJson.containsKey("toWorkspace")) {
+      targetWorkspace = bodyJson.getInt("toWorkspace");
+    }
+
+    CopyMoveValid validMove = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
+    if (validMove.status != 200) {
+      context.status(validMove.status).result(validMove.message);
+      return;
+    }
+
+    if (workspaceService.isDirectory(sourceWorkspace, pathInfo.filePath())) {
+      try {
+        if (workspaceService.moveDirectory(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
+          context.status(200);
+        } else {
+          context.status(500).result("Unable to move directory.");
+        }
+      } catch (NoSuchWorkspaceException ex) {
+        context.status(404).result(ex.getMessage());
+      } catch (SQLException | WorkspaceFileOpException e) {
+        context.status(500).result("Unable to move directory: " + e.getMessage());
+      }
+    } else {
+      try {
+        if (workspaceService.moveFile(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
+          context.status(200);
+        } else {
+          context.status(500).result("Unable to move file.");
+        }
+      } catch (NoSuchWorkspaceException ex) {
+        context.status(404).result(ex.getMessage());
+      } catch (SQLException | WorkspaceFileOpException e) {
+        context.status(500).result("Unable to move file. " + e.getMessage());
+      }
+    }
+  }
+
+  private void handleCopy(Context context, JsonObject bodyJson)
+  throws NoSuchWorkspaceException, SQLException {
+    final var pathInfo = PathInformation.of(context);
+
+    final var destination = Path.of(bodyJson.getString("copyTo"));
+    int sourceWorkspace = pathInfo.workspaceId;
+    int targetWorkspace = pathInfo.workspaceId; // default to same workspace unless toWorkspace is included
+    if (bodyJson.containsKey("toWorkspace")) {
+      targetWorkspace = bodyJson.getInt("toWorkspace");
+    }
+
+    CopyMoveValid validCopy = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
+    if (validCopy.status != 200) {
+        context.status(validCopy.status).result(validCopy.message);
+        return;
+    }
+
+    if (workspaceService.isDirectory(sourceWorkspace, pathInfo.filePath())) {
+      try {
+        if (workspaceService.copyDirectory(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
+          context.status(200);
+        } else {
+          context.status(500).result("Unable to copy directory.");
+        }
+      } catch (NoSuchWorkspaceException ex) {
+        context.status(404).result(ex.getMessage());
+      } catch (SQLException | WorkspaceFileOpException e) {
+        context.status(500).result("Unable to copy directory: " + e.getMessage());
+      }
+    } else {
+      try {
+        if (workspaceService.copyFile(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
+          context.status(200);
+        } else {
+          context.status(500).result("Unable to copy file.");
+        }
+      } catch (NoSuchWorkspaceException ex) {
+        context.status(404).result(ex.getMessage());
+      } catch (SQLException | WorkspaceFileOpException e) {
+        context.status(500).result("Unable to copy file: " + e.getMessage());
+      }
+    }
+  }
+
 
   private void delete(Context context) throws NoSuchWorkspaceException, IOException {
     final var pathInfo = PathInformation.of(context);
