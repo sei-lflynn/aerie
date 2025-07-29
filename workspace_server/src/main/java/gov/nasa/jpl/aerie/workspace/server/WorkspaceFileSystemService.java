@@ -169,7 +169,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   {
     final var sourceRepoPath = postgresRepository.workspaceRootPath(sourceWorkspaceId);
     final var sourcePath = sourceRepoPath.resolve(sourceFilePath);
-    final var destRepoPath = postgresRepository.workspaceRootPath(destWorkspaceId);
+    final var destRepoPath = (sourceWorkspaceId == destWorkspaceId) ? sourceRepoPath : postgresRepository.workspaceRootPath(destWorkspaceId);
     final var destPath = destRepoPath.resolve(destFilePath);
 
     try {
@@ -209,7 +209,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   {
     final var sourceRepoPath = postgresRepository.workspaceRootPath(sourceWorkspaceId);
     final var sourcePath = sourceRepoPath.resolve(sourceFilePath);
-    final var destRepoPath = postgresRepository.workspaceRootPath(destWorkspaceId);
+    final var destRepoPath = (sourceWorkspaceId == destWorkspaceId) ? sourceRepoPath : postgresRepository.workspaceRootPath(destWorkspaceId);
     final var destPath = destRepoPath.resolve(destFilePath);
 
     try {
@@ -287,11 +287,11 @@ public class WorkspaceFileSystemService implements WorkspaceService {
 
   @Override
   public boolean moveDirectory(final int oldWorkspaceId, final Path oldDirectoryPath, final int newWorkspaceId, final Path newDirectoryPath)
-  throws NoSuchWorkspaceException, IOException, SQLException, WorkspaceFileOpException
+  throws NoSuchWorkspaceException, IOException, WorkspaceFileOpException
   {
     final var oldRepoPath = postgresRepository.workspaceRootPath(oldWorkspaceId);
     final var oldPath = oldRepoPath.resolve(oldDirectoryPath);
-    final var newRepoPath = postgresRepository.workspaceRootPath(newWorkspaceId);
+    final var newRepoPath = (oldWorkspaceId == newWorkspaceId) ? oldRepoPath : postgresRepository.workspaceRootPath(newWorkspaceId);
     final var newPath = newRepoPath.resolve(newDirectoryPath);
 
     // Do not permit the source workspace's root directory to be moved
