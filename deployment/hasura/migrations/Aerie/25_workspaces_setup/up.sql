@@ -221,4 +221,4 @@ alter table sequencing.workspace
  alter column disk_location set not null,
  alter column parcel_id set not null;
 
-call migrations.mark_migration_applied(24, true);
+call migrations.mark_migration_applied(25, true);

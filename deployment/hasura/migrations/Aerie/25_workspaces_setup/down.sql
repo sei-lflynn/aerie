@@ -77,4 +77,4 @@ alter table migrations.schema_migrations
   drop column after_done,
   drop column pause_after;
 
-call migrations.mark_migration_rolled_back('24')
+call migrations.mark_migration_rolled_back('25')

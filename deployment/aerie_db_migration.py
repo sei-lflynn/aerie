@@ -202,7 +202,7 @@ class Hasura:
     :return: True if there is an open "after" task for the migration, else returns False
     """
     # If the migration id is before the one that introduces after tasks, return False
-    if migration_id < 24:
+    if migration_id < 25:
       return False
 
     # Query the database
@@ -286,7 +286,7 @@ class Hasura:
     # Apply after task for the specific migration
     # TODO: Refactor this method to call on a up.py file within the individual migration's directory
     #   alongside the up.sql and down.sql
-    if migration_id == 24:  # update id number
+    if migration_id == 25:  # update id number
       mStatus = self.__apply_workspaces_migration__()
     else:
       print_error("Migration " + str(migration_id) + " does not have an after procedure in this version of the script."
