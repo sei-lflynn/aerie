@@ -2,26 +2,26 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: aerie-dev
-  name: aerie-workspaces
+  name: aerie-workspace
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: aerie-workspaces
+      app: aerie-workspace
   template:
     metadata:
-      name: aerie-workspaces
+      name: aerie-workspace
       labels:
-        app: aerie-workspaces
+        app: aerie-workspace
     spec:
       containers:
-        - name: aerie-workspaces
-          image: ghcr.io/nasa-ammos/aerie-workspaces:develop
+        - name: aerie-workspace
+          image: ghcr.io/nasa-ammos/aerie-workspace:develop
           ports:
             - containerPort: 28000
           volumeMounts:
             - mountPath: /usr/src/ws
-              name: workspaces_file_store
+              name: workspace_file_store
           env:
             - name: JAVA_OPTS
               value: |
@@ -51,6 +51,6 @@ spec:
                   key: HASURA_GRAPHQL_JWT_SECRET
       restartPolicy: Always
       volumes:
-        - name: workspaces_file_store
+        - name: workspace_file_store
           persistentVolumeClaim:
-            claimName: workspaces_file_store
+            claimName: workspace_file_store

@@ -33,7 +33,7 @@ services:
     ports: !reset []
   aerie_sequencing:
     ports: !reset []
-  aerie_workspaces:
+  aerie_workspace:
     ports: !reset []
   aerie_ui:
     ports: !reset []

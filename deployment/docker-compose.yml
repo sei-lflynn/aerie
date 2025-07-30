@@ -160,7 +160,7 @@ services:
     networks:
       - aerie_net
   aerie_workspace:
-    container_name: aerie_workspaces
+    container_name: aerie_workspace
     depends_on: [ "postgres" ]
     environment:
       AERIE_DB_HOST: postgres
@@ -174,11 +174,11 @@ services:
         -Dorg.slf4j.simpleLogger.defaultLogLevel=INFO
         -Dorg.slf4j.simpleLogger.log.com.zaxxer.hikari=INFO
         -Dorg.slf4j.simpleLogger.logFile=System.err
-    image: "${REPOSITORY_DOCKER_URL}/aerie-workspaces:${DOCKER_TAG}"
+    image: "${REPOSITORY_DOCKER_URL}/aerie-workspace:${DOCKER_TAG}"
     ports: [ "28000:28000" ]
     restart: always
     volumes:
-      - workspaces_file_store:/usr/src/ws
+      - workspace_file_store:/usr/src/ws
   aerie_ui:
     container_name: aerie_ui
     depends_on: ["postgres"]
@@ -247,7 +247,7 @@ volumes:
   aerie_file_store:
   mission_file_store:
   postgres_data:
-  workspaces_file_store:
+  workspace_file_store:
 
 networks:
   aerie_net:

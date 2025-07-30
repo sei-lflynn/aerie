@@ -69,7 +69,7 @@ jobs:
           - image: aerie-action
             context: action-server
             file: action-server/Dockerfile
-          - image: aerie-workspaces
+          - image: aerie-workspace
             context: workspace-server
             file: workspace-server/Dockerfile
           - image: aerie-hasura
@@ -149,7 +149,7 @@ jobs:
           - aerie-scheduler-worker
           - aerie-sequencing
           - aerie-action
-          - aerie-workspaces
+          - aerie-workspace
           - aerie-hasura
           - aerie-postgres
       fail-fast: false

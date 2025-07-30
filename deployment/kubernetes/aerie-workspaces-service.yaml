@@ -2,10 +2,10 @@ apiVersion: v1
 kind: Service
 metadata:
   namespace: aerie-dev
-  name: aerie-workspaces
+  name: aerie-workspace
 spec:
   selector:
-    app: aerie-workspaces
+    app: aerie-workspace
   ports:
     - name: "28000"
       port: 28000

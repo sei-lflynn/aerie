@@ -133,7 +133,7 @@ services:
     build:
       context: ./workspace-server
       dockerfile: Dockerfile
-    container_name: aerie_workspaces
+    container_name: aerie_workspace
     depends_on: [ "postgres" ]
     environment:
       AERIE_DB_HOST: postgres
@@ -148,11 +148,11 @@ services:
         -Dorg.slf4j.simpleLogger.defaultLogLevel=INFO
         -Dorg.slf4j.simpleLogger.log.com.zaxxer.hikari=INFO
         -Dorg.slf4j.simpleLogger.logFile=System.err
-    image: aerie_workspaces
+    image: aerie_workspace
     ports: [ "28000:28000", "5015:5005" ]
     restart: always
     volumes:
-      - workspaces_file_store:/usr/src/ws
+      - workspace_file_store:/usr/src/ws
   aerie_ui:
     container_name: aerie_ui
     depends_on: ["postgres"]
@@ -317,4 +317,4 @@ services:
 volumes:
   aerie_file_store:
   postgres_data:
-  workspaces_file_store:
+  workspace_file_store:
