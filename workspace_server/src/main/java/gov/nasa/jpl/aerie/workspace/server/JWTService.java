@@ -7,7 +7,7 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
 import javax.json.JsonObject;
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A service for decoding JWTs.
@@ -33,7 +33,7 @@ public final class JWTService {
       case "HS256" -> Algorithm.HMAC256(key);
       case "HS384" -> Algorithm.HMAC384(key);
       case "HS512" -> Algorithm.HMAC512(key);
-      default -> Algorithm.none();
+      default -> throw new IllegalArgumentException("Unsupported JWT algorithm: " + typeString);
     };
 
     final var vbuilder = JWT.require(algorithm);
@@ -63,18 +63,28 @@ public final class JWTService {
     final var username = decodedJWT.getClaim("username").asString();
     final var hasuraClaims = decodedJWT.getClaim("https://hasura.io/jwt/claims").asMap();
 
+    if (username == null || username.isBlank()) {
+      throw new JWTVerificationException("Missing or invalid username in JWT.");
+    }
+    if (hasuraClaims == null) {
+      throw new JWTVerificationException("Missing hasura claims in JWT.");
+    }
+
     // Validate the active role, if present
     if(activeRole != null && !activeRole.isBlank()) {
       // Confirmed via runtime inspection that this String Array in the token is stored as an ArrayList in the Map
       @SuppressWarnings("unchecked")
-      final var allowedRoles = (ArrayList<String>) hasuraClaims.get("x-hasura-allowed-roles");
-      if (!allowedRoles.contains(activeRole)) {
+      final var allowedRoles = (List<String>) hasuraClaims.get("x-hasura-allowed-roles");
+      if (allowedRoles == null || !allowedRoles.contains(activeRole)) {
         throw new JWTVerificationException("Provided active role is not in the set of permitted roles.");
       }
       return new UserSession(username, activeRole);
     }
     // Use the default role, if absent
     final String defaultRole = (String) hasuraClaims.get("x-hasura-default-role");
+    if (defaultRole == null || defaultRole.isBlank()) {
+      throw new JWTVerificationException("No default role found in JWT claims.");
+    }
     return new UserSession(username, defaultRole);
   }
 }
