@@ -86,7 +86,7 @@ public final class WorkspaceAppDriver {
       final var hikariDataSource = new HikariDataSource(hikariConfig);
 
       final var jwt = new JWTService(config.jwtSecret());
-      final var workspace = new WorkspaceFileSystemService(new WorkspacePostgresRepository(config.workspacesFileStore(), hikariDataSource));
+      final var workspace = new WorkspaceFileSystemService(new WorkspacePostgresRepository(config.workspaceFileStore(), hikariDataSource));
       return new Stores(jwt, workspace);
     } else {
       throw new UnexpectedSubtypeError(Store.class, store);

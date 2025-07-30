@@ -53,5 +53,5 @@ include 'examples:streamline-demo'
 include 'stateless-aerie'
 include 'orchestration-utils'
 include 'type-utils'
-include 'workspace_server'
+include 'workspace-server'
 

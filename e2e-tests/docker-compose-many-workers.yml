@@ -126,7 +126,7 @@ services:
       - aerie_file_store:/usr/src/app/sequencing_file_store
   aerie_workspace:
     build:
-      context: ../workspace_server
+      context: ../workspace-server
       dockerfile: Dockerfile
     container_name: aerie_workspaces
     depends_on: [ "postgres" ]

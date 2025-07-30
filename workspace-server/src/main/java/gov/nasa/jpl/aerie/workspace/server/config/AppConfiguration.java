@@ -7,12 +7,12 @@ import java.util.Objects;
 public record AppConfiguration (
     int httpPort,
     boolean enableJavalinDevLogging,
-    Path workspacesFileStore,
+    Path workspaceFileStore,
     JsonObject jwtSecret,
     Store store
 ) {
   public AppConfiguration {
-    Objects.requireNonNull(workspacesFileStore);
+    Objects.requireNonNull(workspaceFileStore);
     Objects.requireNonNull(store);
   }
 }
