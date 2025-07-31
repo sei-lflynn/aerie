@@ -122,8 +122,8 @@ public class WorkspaceBindings implements Plugin {
         return;
       }
       final var workspaceString = bodyJson.getString("workspaceLocation");
-      if(workspaceString.contains("/")){
-        context.status(400).result("Workspace location may not contain '/'");
+      if(workspaceString.contains("/") || workspaceString.contains(".") || workspaceString.contains("~")){
+        context.status(400).result("Workspace location may not contain '/' or '.' or '~'");
         return;
       }
       workspaceLocation = Path.of(workspaceString);
