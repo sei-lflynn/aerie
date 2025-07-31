@@ -23,6 +23,27 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   private static final Logger logger = LoggerFactory.getLogger(WorkspaceFileSystemService.class);
   final WorkspacePostgresRepository postgresRepository;
 
+  /**
+   * Resolves a relative path against a workspace root, ensuring the result stays within the root directory.
+   * Prevents path traversal attacks by rejecting absolute paths and any resolved path that escape the specified root.
+   * @param rootPath the workspace root path
+   * @param filePath the untrusted path to resolve against the root
+   * @return the resolved and normalized path, guaranteed to be within the root
+   * @throws SecurityException if the resolved path escapes the root or if the input is absolute
+   */
+  Path resolveSubPath(final Path rootPath, final Path filePath) {
+    // disallow absolute file paths, since Path.of("/foo").resolve(Path.of("/etc/passwd")) -> "/etc/passwd"
+    if (filePath.isAbsolute()) {
+      throw new SecurityException("Absolute file paths not allowed");
+    }
+    final var normalizedRootPath = rootPath.normalize();
+    final var resolvedPath = normalizedRootPath.resolve(filePath).normalize();
+    if (!resolvedPath.startsWith(normalizedRootPath)) {
+      throw new SecurityException("Path traversal attempt detected");
+    }
+    return resolvedPath;
+  }
+
   public WorkspaceFileSystemService(final WorkspacePostgresRepository postgresRepository) {
     this.postgresRepository = postgresRepository;
   }
@@ -99,15 +120,14 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   @Override
   public boolean checkFileExists(final int workspaceId, final Path filePath) throws NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var path = repoPath.resolve(filePath);
+    final var path = resolveSubPath(repoPath, filePath);
     return path.toFile().exists();
   }
 
   @Override
   public boolean isDirectory(final int workspaceId, final Path filePath) throws NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var path = repoPath.resolve(filePath);
-
+    final var path = resolveSubPath(repoPath, filePath);
     return path.toFile().isDirectory();
   }
 
@@ -120,7 +140,8 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   @Override
   public FileStream loadFile(final int workspaceId, final Path filePath) throws IOException, NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var file = repoPath.resolve(filePath).toFile();
+    final var path = resolveSubPath(repoPath, filePath);
+    final var file = path.toFile();
 
     return new FileStream(new FileInputStream(file), file.getName(), Files.size(file.toPath()));
   }
@@ -129,7 +150,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   public boolean saveFile(final int workspaceId, final Path filePath, final UploadedFile file)
   throws NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var path = repoPath.resolve(filePath);
+    final var path = resolveSubPath(repoPath, filePath);
 
     if(path.toFile().isDirectory()) return false;
 
@@ -142,9 +163,9 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException
   {
     final var oldRepoPath = postgresRepository.workspaceRootPath(oldWorkspaceId);
-    final var oldPath = oldRepoPath.resolve(oldFilePath);
+    final var oldPath = resolveSubPath(oldRepoPath, oldFilePath);
     final var newRepoPath = (oldWorkspaceId == newWorkspaceId) ? oldRepoPath : postgresRepository.workspaceRootPath(newWorkspaceId);
-    final var newPath = newRepoPath.resolve(newFilePath);
+    final var newPath = resolveSubPath(newRepoPath, newFilePath);
     boolean success = true;
 
     // Do not move the file if the destination already exists
@@ -168,9 +189,9 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   throws NoSuchWorkspaceException, SQLException, WorkspaceFileOpException
   {
     final var sourceRepoPath = postgresRepository.workspaceRootPath(sourceWorkspaceId);
-    final var sourcePath = sourceRepoPath.resolve(sourceFilePath);
+    final var sourcePath = resolveSubPath(sourceRepoPath, sourceFilePath);
     final var destRepoPath = (sourceWorkspaceId == destWorkspaceId) ? sourceRepoPath : postgresRepository.workspaceRootPath(destWorkspaceId);
-    final var destPath = destRepoPath.resolve(destFilePath);
+    final var destPath = resolveSubPath(destRepoPath, destFilePath);
 
     try {
       // Do not copy the file if the source file does not exist
@@ -208,9 +229,9 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   throws NoSuchWorkspaceException, WorkspaceFileOpException
   {
     final var sourceRepoPath = postgresRepository.workspaceRootPath(sourceWorkspaceId);
-    final var sourcePath = sourceRepoPath.resolve(sourceFilePath);
+    final var sourcePath = resolveSubPath(sourceRepoPath, sourceFilePath);
     final var destRepoPath = (sourceWorkspaceId == destWorkspaceId) ? sourceRepoPath : postgresRepository.workspaceRootPath(destWorkspaceId);
-    final var destPath = destRepoPath.resolve(destFilePath);
+    final var destPath = resolveSubPath(destRepoPath, destFilePath);
 
     try {
       // Validate source exists and is a directory
@@ -251,7 +272,8 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   @Override
   public boolean deleteFile(final int workspaceId, final Path filePath) throws NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var file = repoPath.resolve(filePath).toFile();
+    final var path = resolveSubPath(repoPath, filePath);
+    final var file = path.toFile();
     return file.delete();
   }
 
@@ -259,7 +281,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   public DirectoryTree listFiles(final int workspaceId, final Optional<Path> directoryPath, final int depth)
   throws SQLException, NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var path = repoPath.resolve(directoryPath.orElse(Path.of("")));
+    final var path = resolveSubPath(repoPath, directoryPath.orElse(Path.of("")));
 
     if(!path.toFile().isDirectory()) {
       return null;
@@ -279,7 +301,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   @Override
   public boolean createDirectory(final int workspaceId, final Path directoryPath) throws IOException, NoSuchWorkspaceException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
-    final var path = repoPath.resolve(directoryPath);
+    final var path = resolveSubPath(repoPath, directoryPath);
     Files.createDirectories(path);
     return true;
   }
@@ -289,10 +311,10 @@ public class WorkspaceFileSystemService implements WorkspaceService {
   public boolean moveDirectory(final int oldWorkspaceId, final Path oldDirectoryPath, final int newWorkspaceId, final Path newDirectoryPath)
   throws NoSuchWorkspaceException, IOException, WorkspaceFileOpException
   {
-    final var oldRepoPath = postgresRepository.workspaceRootPath(oldWorkspaceId);
-    final var oldPath = oldRepoPath.resolve(oldDirectoryPath);
-    final var newRepoPath = (oldWorkspaceId == newWorkspaceId) ? oldRepoPath : postgresRepository.workspaceRootPath(newWorkspaceId);
-    final var newPath = newRepoPath.resolve(newDirectoryPath);
+    final var oldRepoPath = postgresRepository.workspaceRootPath(oldWorkspaceId).normalize();
+    final var oldPath = resolveSubPath(oldRepoPath, oldDirectoryPath);
+    final var newRepoPath = (oldWorkspaceId == newWorkspaceId) ? oldRepoPath : postgresRepository.workspaceRootPath(newWorkspaceId).normalize();
+    final var newPath = resolveSubPath(newRepoPath, newDirectoryPath);
 
     // Do not permit the source workspace's root directory to be moved
     if(Files.isSameFile(oldPath, oldRepoPath)) throw new WorkspaceFileOpException("Cannot move the workspace root directory.");
