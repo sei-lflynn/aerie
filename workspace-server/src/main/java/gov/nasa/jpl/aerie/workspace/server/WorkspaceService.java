@@ -80,8 +80,8 @@ public interface WorkspaceService {
    */
   boolean deleteFile(final int workspaceId, final Path filePath) throws IOException, NoSuchWorkspaceException;
 
-  DirectoryTree listFiles(final int workspaceId, final Optional<Path> directoryPath, final int depth) throws SQLException,
-                                                                                                             NoSuchWorkspaceException;
+  DirectoryTree listFiles(final int workspaceId, final Optional<Path> directoryPath, final int depth)
+  throws SQLException, NoSuchWorkspaceException, IOException;
 
   boolean createDirectory(final int workspaceId, final Path directoryPath) throws IOException, NoSuchWorkspaceException;
   /**

@@ -278,7 +278,7 @@ public class WorkspaceFileSystemService implements WorkspaceService {
 
   @Override
   public DirectoryTree listFiles(final int workspaceId, final Optional<Path> directoryPath, final int depth)
-  throws SQLException, NoSuchWorkspaceException {
+  throws SQLException, NoSuchWorkspaceException, IOException {
     final var repoPath = postgresRepository.workspaceRootPath(workspaceId);
     final var path = resolveSubPath(repoPath, directoryPath.orElse(Path.of("")));
 
@@ -292,8 +292,6 @@ public class WorkspaceFileSystemService implements WorkspaceService {
       final var walkList = new ArrayList<>(walkOutput.toList());
       walkList.removeFirst(); // remove the initial path
       return new DirectoryTree(path, walkList, postgresRepository.getExtensionMapping());
-    } catch (IOException io) {
-      return null;
     }
   }
 
