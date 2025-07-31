@@ -24,6 +24,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.javalin.apibuilder.ApiBuilder.before;
 import static io.javalin.apibuilder.ApiBuilder.path;
 
 public class WorkspaceBindings implements Plugin {
@@ -52,7 +53,7 @@ public class WorkspaceBindings implements Plugin {
   @Override
   public void apply(final Javalin javalin) {
     javalin.routes(() -> {
-      //before("/ws/*", authorize); <- dont want to force auth on the health check.
+      before("/ws/*", this::authorize); //<- don't want to force auth on the health check.
       // Health check
       path("/health", () -> ApiBuilder.get(ctx -> ctx.status(200)));
 
