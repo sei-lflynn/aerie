@@ -108,18 +108,27 @@ public class WorkspaceBindings implements Plugin {
     try(final var reader = Json.createReader(new StringReader(context.body()))) {
       final var bodyJson = reader.readObject();
 
+      // Parcel Id
+      if (!bodyJson.containsKey("parcelId")) {
+        context.status(400).result("Mandatory body parameter 'parcelId' is missing or null. Request body format is:\n" + helpText);
+        return;
+      }
       parcelId = bodyJson.getInt("parcelId");
+
+      // Workspace Location
+      if (!bodyJson.containsKey("workspaceLocation")) {
+        context.status(400).result("Mandatory body parameter 'workspaceLocation' is missing or null. Request body format is:\n" + helpText);
+        return;
+      }
       final var workspaceString = bodyJson.getString("workspaceLocation");
       if(workspaceString.contains("/")){
         context.status(400).result("Workspace location may not contain '/'");
         return;
       }
+      workspaceLocation = Path.of(workspaceString);
 
-      workspaceLocation = Path.of(bodyJson.getString("workspaceLocation"));
-      workspaceName = bodyJson.containsKey("workspaceName") ? bodyJson.getString("workspaceName") : workspaceLocation.toString();
-    } catch (NullPointerException npe) {
-      context.status(400).result("Mandatory body parameter is null. Request body format is:\n" + helpText);
-      return;
+      // Workspace Name
+      workspaceName = bodyJson.containsKey("workspaceName") ? bodyJson.getString("workspaceName") : workspaceString;
     } catch (JsonException je) {
       context.status(400).result("Request body is malformed. Request body format is:\n" + helpText);
       return;
