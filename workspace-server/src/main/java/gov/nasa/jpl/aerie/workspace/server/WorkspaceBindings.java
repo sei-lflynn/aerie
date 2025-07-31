@@ -6,6 +6,7 @@ import io.javalin.Javalin;
 import io.javalin.apibuilder.ApiBuilder;
 import io.javalin.http.ContentType;
 import io.javalin.http.Context;
+import io.javalin.http.HandlerType;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.plugin.Plugin;
 import io.javalin.validation.ValidationException;
@@ -53,7 +54,13 @@ public class WorkspaceBindings implements Plugin {
   @Override
   public void apply(final Javalin javalin) {
     javalin.routes(() -> {
-      before("/ws/*", this::authorize); //<- don't want to force auth on the health check.
+      before("/ws/*", ctx -> {
+        // don't force auth on health check
+        // skip auth for browser preflight (OPTIONS) requests
+        if (ctx.method() != HandlerType.OPTIONS) {
+          authorize(ctx);
+        }
+      });
       // Health check
       path("/health", () -> ApiBuilder.get(ctx -> ctx.status(200)));
 
