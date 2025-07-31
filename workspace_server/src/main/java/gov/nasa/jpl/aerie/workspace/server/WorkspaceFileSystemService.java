@@ -174,9 +174,9 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     // Find hidden metadata files, if they exist, and move them
     final var metadataExtensions = postgresRepository.getMetadataExtensions();
     for(final var extension : metadataExtensions) {
-      final File oldFile = Path.of(oldPath + extension).toFile();
+      final File oldFile = oldPath.resolveSibling(oldPath.getFileName() + extension).toFile();
       if(oldFile.exists()) {
-        final var newFile = Path.of(newPath + extension).toFile();
+        final var newFile = newPath.resolveSibling(newPath.getFileName() + extension).toFile();
         success = success && oldFile.renameTo(newFile); // Do not fast-fail
       }
     }
@@ -209,8 +209,8 @@ public class WorkspaceFileSystemService implements WorkspaceService {
       // Find and copy hidden metadata files
       final var metadataExtensions = postgresRepository.getMetadataExtensions();
       for (final var extension : metadataExtensions) {
-        final var oldMetaPath = Path.of(sourcePath + extension);
-        final var newMetaPath = Path.of(destPath + extension);
+        final var oldMetaPath = sourcePath.resolveSibling(sourcePath.getFileName() + extension);
+        final var newMetaPath = destPath.resolveSibling(destPath.getFileName() + extension);
         if (Files.exists(oldMetaPath)) {
           Files.copy(oldMetaPath, newMetaPath);
         }
@@ -266,7 +266,6 @@ public class WorkspaceFileSystemService implements WorkspaceService {
       return false;
     }
   }
-
 
 
   @Override
