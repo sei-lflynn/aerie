@@ -82,13 +82,13 @@ public class WorkspaceFileSystemService implements WorkspaceService {
 
     for(final var f : contents) {
       if(Files.isSymbolicLink(f.toPath()) || !f.isDirectory()) {
-        success = success && rm(f);
+        success = rm(f) && success;
       } else {
-        success = success && rmDirectory(f);
+        success = rmDirectory(f) && success;
       }
     }
 
-    return success && rm(directory);
+    return rm(directory) && success;
   }
 
   /**
@@ -177,11 +177,11 @@ public class WorkspaceFileSystemService implements WorkspaceService {
       final File oldFile = oldPath.resolveSibling(oldPath.getFileName() + extension).toFile();
       if(oldFile.exists()) {
         final var newFile = newPath.resolveSibling(newPath.getFileName() + extension).toFile();
-        success = success && oldFile.renameTo(newFile); // Do not fast-fail
+        success = oldFile.renameTo(newFile) && success; // Do not fast-fail
       }
     }
 
-    return success && oldPath.toFile().renameTo(newPath.toFile());
+    return oldPath.toFile().renameTo(newPath.toFile()) && success;
   }
 
   @Override
