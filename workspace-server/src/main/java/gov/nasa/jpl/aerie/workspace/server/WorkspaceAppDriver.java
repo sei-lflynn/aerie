@@ -58,7 +58,7 @@ public final class WorkspaceAppDriver {
     });
 
     // Start the HTTP server.
-    javalin.start(9999);
+    javalin.start(configuration.httpPort());
 
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       javalin.stop();
