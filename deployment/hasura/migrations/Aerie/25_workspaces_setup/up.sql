@@ -138,6 +138,7 @@ comment on column sequencing.workspace_collaborators.collaborator is e''
 alter table sequencing.workspace
  add column disk_location text,
  add column parcel_id integer,
+ add column old_ws_id integer,
  add foreign key (parcel_id)
     references sequencing.parcel
     on update cascade
@@ -168,13 +169,13 @@ with parcels_per_ws as (
     from (select distinct parcel_id, workspace_id, p.name as pname
   from sequencing.user_sequence us join sequencing.parcel p on us.parcel_id = p.id
   order by workspace_id, parcel_id) a
-), inserted_ws(new_wid, name, pid) as (
+), inserted_ws(new_wid, name, pid, old_wid) as (
   -- Create a new workspace for each additional parcel used on the workspace
-  insert into sequencing.workspace (name, parcel_id, owner, created_at, updated_by, updated_at)
-   select name || ' (' || ppw.pname ||')' as name, ppw.parcel_id, owner, created_at, updated_by, updated_at
+  insert into sequencing.workspace (name, parcel_id, owner, created_at, updated_by, updated_at, old_ws_id)
+   select name || ' (' || ppw.pname ||')' as name, ppw.parcel_id, owner, created_at, updated_by, updated_at, ppw.workspace_id
    from parcels_per_ws ppw join sequencing.workspace ws on (ppw.workspace_id = ws.id)
    where ppw.wrow > 1
-   returning id, name, parcel_id
+   returning id, name, parcel_id, old_ws_id
 ), update_ws as (
   -- Update the already existing workspaces to have parcel ids
   update sequencing.workspace ws
@@ -186,14 +187,13 @@ with parcels_per_ws as (
   update sequencing.user_sequence us
     set workspace_id = iws.new_wid
   from inserted_ws iws, parcels_per_ws ppw, sequencing.workspace ws
-  where us.workspace_id = ws.id
-    and iws.name = ws.name || ' (' || ppw.pname ||')'
-    and us.parcel_id = iws.pid;
+  where us.parcel_id = iws.pid
+    and us.workspace_id = iws.old_wid;
 
 
 -- Data migration: disk_location
 update sequencing.workspace ws
-set disk_location = replace(replace(ws.name, ' ', '_'), '/', '_');
+set disk_location = replace(replace(replace(ws.name, '/', '_'), '.', '_'), '~', '_');
 
 -- Fix conflicts
 update sequencing.workspace ws
@@ -219,6 +219,7 @@ where
 alter table sequencing.workspace
  add unique(disk_location),
  alter column disk_location set not null,
- alter column parcel_id set not null;
+ alter column parcel_id set not null,
+ drop column old_ws_id;
 
 call migrations.mark_migration_applied(25, true);
