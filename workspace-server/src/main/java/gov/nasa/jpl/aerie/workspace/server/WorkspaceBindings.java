@@ -228,7 +228,7 @@ public class WorkspaceBindings implements Plugin {
   private void put(Context context) throws NoSuchWorkspaceException, IOException {
     final var pathInfo = PathInformation.of(context);
     final String type;
-    final boolean overwrite;
+    final Optional<Boolean> overwrite;
 
     // Validate the permitted query parameters on Put requests
     try {
@@ -238,20 +238,22 @@ public class WorkspaceBindings implements Plugin {
                     .check(ts -> "file".equalsIgnoreCase(ts) || "directory".equalsIgnoreCase(ts),
                            "'type' must be one of 'file' or 'directory'")
                     .get();
-      overwrite = context.queryParamAsClass("overwrite", Boolean.class).getOrDefault(false);
+      final var overwriteValidator =  context.queryParamAsClass("overwrite", Boolean.class);
+      overwrite = overwriteValidator.hasValue() ? Optional.of(overwriteValidator.get()) : Optional.empty();
     } catch (ValidationException ve) {
       context.status(400).result(ve.getMessage() != null ? ve.getMessage() : "Invalid request");
       return;
     }
 
-    // Report a "Conflict" status if the file already exists and "overwrite" is false
-    if(workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath)
-       && !overwrite) {
-      context.status(409).result(pathInfo.fileName() + " already exists.");
-      return;
-    }
-
     if ("file".equalsIgnoreCase(type)) {
+      // Report a "Conflict" status if the file already exists and "overwrite" is false
+      // "overwrite" defaults to "false" if unspecified
+      if(workspaceService.checkFileExists(pathInfo.workspaceId, pathInfo.filePath)
+         && !overwrite.orElse(false)) {
+        context.status(409).result(pathInfo.fileName() + " already exists.");
+        return;
+      }
+
       // Reject the request if the file isn't provided.
       final var file = context.uploadedFile("file");
       if (file == null || !pathInfo.fileName().equals(file.filename())) {
@@ -265,6 +267,12 @@ public class WorkspaceBindings implements Plugin {
         context.status(500).result("Could not save file.");
       }
     } else if ("directory".equalsIgnoreCase(type)) {
+      // Reject the request if the "overwrite" flag is supplied
+      if(overwrite.isPresent()) {
+        context.status(400).result("Query parameter 'overwrite' is not permitted when creating a directory.");
+        return;
+      }
+
       if (workspaceService.createDirectory(pathInfo.workspaceId, pathInfo.filePath)) {
         context.status(200).result("Directory created.");
       } else {
