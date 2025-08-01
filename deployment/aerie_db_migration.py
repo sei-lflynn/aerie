@@ -349,7 +349,7 @@ class Hasura:
     if results.pop(0)[0] != 'id':
       exit_with_error("Error while fetching user sequences from the database.")
 
-    # Upload files to workspace -- saveFile will make the workspace's root dir
+    # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
     # Save definition (.seq.user) and seq_json (.seq.json)
     for row in results:
       seqId = int(row[0])
