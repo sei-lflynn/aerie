@@ -241,6 +241,10 @@ public class WorkspaceFileSystemService implements WorkspaceService {
       // Do not copy if destination already exists
       if (Files.exists(destPath)) throw new WorkspaceFileOpException("Destination directory \"%s\" in workspace %d already exists.".formatted(destFilePath, destWorkspaceId));
 
+      // Do not try to copy a directory into itself
+      if(sourceWorkspaceId == destWorkspaceId && destPath.startsWith(sourcePath)){
+        throw new WorkspaceFileOpException("Cannot copy a directory into itself.");
+      }
 
       // Walk source directory and copy files/subdirectories -- note we have to use a try-with-resources thing here
       // to ensure the stream autocloses
@@ -319,6 +323,11 @@ public class WorkspaceFileSystemService implements WorkspaceService {
     // Do not permit a moved directory to replace the target workspace's root directory
     if (Files.exists(newPath) && Files.isSameFile(newPath, newRepoPath)) {
       throw new WorkspaceFileOpException("Cannot replace the workspace root directory.");
+    }
+
+    // Do not try to move a directory into itself
+    if(oldWorkspaceId == newWorkspaceId && newPath.startsWith(oldPath)){
+      throw new WorkspaceFileOpException("Cannot move a directory into itself.");
     }
 
     return oldPath.toFile().renameTo(newPath.toFile());

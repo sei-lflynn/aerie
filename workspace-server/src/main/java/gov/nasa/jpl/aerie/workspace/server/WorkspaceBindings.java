@@ -7,6 +7,7 @@ import io.javalin.apibuilder.ApiBuilder;
 import io.javalin.http.ContentType;
 import io.javalin.http.Context;
 import io.javalin.http.HandlerType;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.plugin.Plugin;
 import io.javalin.validation.ValidationException;
@@ -284,7 +285,6 @@ public class WorkspaceBindings implements Plugin {
   }
 
   private void post(Context context) {
-
     final String helpText = """
     Expected JSON body with one of the following formats:
 
@@ -303,34 +303,40 @@ public class WorkspaceBindings implements Plugin {
 
     try (JsonReader bodyReader = Json.createReader(new StringReader(context.body()))) {
       JsonObject bodyJson = bodyReader.readObject();
+      final boolean success;
 
       if (bodyJson.containsKey("moveTo")) {
-        handleMove(context, bodyJson);
+        success = handleMove(context, bodyJson);
       } else if (bodyJson.containsKey("copyTo")) {
-        handleCopy(context, bodyJson);
+        success = handleCopy(context, bodyJson);
       } else {
         context.status(400).result("Invalid request. Must include either 'moveTo' or 'copyTo' key.\n\n" + helpText);
+        return;
       }
 
-      context.status(200).result("Success");
+      if (success) {
+        context.status(200).result("Success");
+      }
+      // If the copy or move did not return successfully, but did not set a status code, set the status code to 500
+      // Works because `context.status` initializes to HttpStatus.OK
+      else if (context.status().equals(HttpStatus.OK)) {
+        context.status(500).result("Internal Error");
+      }
+
 
     } catch (JsonException e) {
       // Malformed JSON in request body
       context.status(400).result("Malformed JSON: " + e.getMessage() + "\n\n" + helpText);
-
     } catch (IllegalArgumentException e) {
       // Logical errors or unsupported operations
       context.status(400).result("Invalid request: " + e.getMessage() + "\n\n" + helpText);
-
     } catch (NoSuchWorkspaceException e) {
       // Workspace not found
       context.status(404).result("Workspace not found: " + e.getMessage());
-
     } catch (IOException | SQLException e) {
       // Internal server error
       logger.error("Error processing workspace request", e);
       context.status(500).result("Internal server error while processing the request: " + e.getMessage());
-
     } catch (Exception e) {
       // Catch-all for unexpected issues
       logger.error("Unexpected error processing workspace request", e);
@@ -365,7 +371,7 @@ public class WorkspaceBindings implements Plugin {
     return new CopyMoveValid(200, "Success");
   }
 
-  private void handleMove(Context context, JsonObject bodyJson)
+  private boolean handleMove(Context context, JsonObject bodyJson)
   throws IOException, NoSuchWorkspaceException, SQLException {
     final var pathInfo = PathInformation.of(context);
 
@@ -379,37 +385,43 @@ public class WorkspaceBindings implements Plugin {
     CopyMoveValid validMove = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
     if (validMove.status != 200) {
       context.status(validMove.status).result(validMove.message);
-      return;
+      return false;
     }
 
     if (workspaceService.isDirectory(sourceWorkspace, pathInfo.filePath())) {
       try {
         if (workspaceService.moveDirectory(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
-          context.status(200);
+          return true;
         } else {
           context.status(500).result("Unable to move directory.");
+          return false;
         }
       } catch (NoSuchWorkspaceException ex) {
         context.status(404).result(ex.getMessage());
+        return false;
       } catch (SQLException | WorkspaceFileOpException e) {
         context.status(500).result("Unable to move directory: " + e.getMessage());
+        return false;
       }
     } else {
       try {
         if (workspaceService.moveFile(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
-          context.status(200);
+          return true;
         } else {
           context.status(500).result("Unable to move file.");
+          return false;
         }
       } catch (NoSuchWorkspaceException ex) {
         context.status(404).result(ex.getMessage());
+        return false;
       } catch (SQLException | WorkspaceFileOpException e) {
         context.status(500).result("Unable to move file. " + e.getMessage());
+        return false;
       }
     }
   }
 
-  private void handleCopy(Context context, JsonObject bodyJson)
+  private boolean handleCopy(Context context, JsonObject bodyJson)
   throws NoSuchWorkspaceException, SQLException {
     final var pathInfo = PathInformation.of(context);
 
@@ -423,32 +435,38 @@ public class WorkspaceBindings implements Plugin {
     CopyMoveValid validCopy = isCopyOrMoveValid(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination);
     if (validCopy.status != 200) {
         context.status(validCopy.status).result(validCopy.message);
-        return;
+        return false;
     }
 
     if (workspaceService.isDirectory(sourceWorkspace, pathInfo.filePath())) {
       try {
         if (workspaceService.copyDirectory(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
-          context.status(200);
+          return true;
         } else {
           context.status(500).result("Unable to copy directory.");
+          return false;
         }
       } catch (NoSuchWorkspaceException ex) {
         context.status(404).result(ex.getMessage());
+        return false;
       } catch (SQLException | WorkspaceFileOpException e) {
         context.status(500).result("Unable to copy directory: " + e.getMessage());
+        return false;
       }
     } else {
       try {
         if (workspaceService.copyFile(sourceWorkspace, pathInfo.filePath, targetWorkspace, destination)) {
-          context.status(200);
+          return true;
         } else {
           context.status(500).result("Unable to copy file.");
+          return false;
         }
       } catch (NoSuchWorkspaceException ex) {
         context.status(404).result(ex.getMessage());
+        return false;
       } catch (SQLException | WorkspaceFileOpException e) {
         context.status(500).result("Unable to copy file: " + e.getMessage());
+        return false;
       }
     }
   }
