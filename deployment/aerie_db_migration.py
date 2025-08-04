@@ -326,8 +326,7 @@ class Hasura:
     headers = {
       "content-type": "application/json",
       "x-hasura-admin-secret": self.admin_secret,
-      "x-hasura-role": "admin",
-      "x-hasura-user-id": "migration-script"
+      "x-hasura-role": "admin"
     }
     body = {
       "type": "run_sql",
@@ -347,6 +346,12 @@ class Hasura:
     if results.pop(0)[0] != 'id':
       exit_with_error("Error while fetching user sequences from the database.")
 
+    # admin headers for making requests to the workspace service without a JWT
+    workspace_service_headers = {
+      "x-hasura-admin-secret": self.admin_secret,
+      "x-hasura-role": "admin",
+      "x-hasura-user-id": "migration-script"
+    }
     # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
     # Save definition (.seq.user) and seq_json (.seq.json)
     for row in results:
@@ -362,6 +367,7 @@ class Hasura:
       # Save definition (saving as file extension `.seq.user`)
       resp = session.put(
         url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.user?type=file',
+        headers=workspace_service_headers,
         files=uSeqFile)
       if not resp.ok:
         print_error(f"Received {resp.status_code} status while uploading sequence to the Workspaces Server.\n"
@@ -371,6 +377,7 @@ class Hasura:
       # Save SeqJson
       resp = session.put(
         url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.json?type=file',
+        headers=workspace_service_headers,
         files=seqJsonFile)
 
       if not resp.ok:
