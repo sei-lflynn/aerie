@@ -42,7 +42,7 @@ class Hasura:
   db_name = 'Aerie'
   current_version = 0
 
-  def __init__(self, endpoint: str, admin_secret: str, hasura_path: str, env_path: str, apply: bool, db_name='Aerie'):
+  def __init__(self, endpoint: str, admin_secret: str, hasura_path: str, env_path: str, db_name='Aerie'):
     """
     Initialize a Hasura object.
 
@@ -76,10 +76,6 @@ class Hasura:
 
     # Mark the current schema version in Hasura
     self.current_version = self.mark_current_version()
-
-    # Check that the latest version doesn't have a pending "after" task to be addressed
-    if not self.apply_after(self.current_version, apply):
-      exit(2)
 
   def execute(self, subcommand: str, flags='', no_output=False) -> int:
     """
@@ -156,6 +152,7 @@ class Hasura:
     session = requests.Session()
     resp = session.post(url=run_sql_url, headers=headers, json=body)
     if not resp.ok:
+      print(resp.text)
       exit_with_error("Error while fetching current schema information.")
 
     migration_ids = resp.json()['result']
@@ -190,8 +187,8 @@ class Hasura:
     """
     Apply and reload the metadata.
     """
-    self.execute('metadata apply')
-    self.execute('metadata reload')
+    self.execute(f'metadata apply {self.migrate_suffix} {self.command_suffix}')
+    self.execute(f'metadata reload {self.migrate_suffix} {self.command_suffix}')
 
   def __check_pause_after__(self, migration_id: int) -> bool:
     """
@@ -329,7 +326,8 @@ class Hasura:
     headers = {
       "content-type": "application/json",
       "x-hasura-admin-secret": self.admin_secret,
-      "x-hasura-role": "admin"
+      "x-hasura-role": "admin",
+      "x-hasura-user-id": "migration-script"
     }
     body = {
       "type": "run_sql",
@@ -559,6 +557,11 @@ def migrate(args: argparse.Namespace):
   hasura = create_hasura(arguments)
 
   clear_screen()
+
+  # Check that the latest version doesn't have a pending "after" task to be addressed and apply it if so
+  if not hasura.apply_after(hasura.current_version, args.apply):
+    exit(2)
+
   print(f'\n###############################'
         f'\nAERIE DATABASE MIGRATION HELPER'
         f'\n###############################'
@@ -623,8 +626,7 @@ def create_hasura(args: argparse.Namespace) -> Hasura:
                 admin_secret=hasura_admin_secret,
                 db_name="Aerie",
                 hasura_path=os.path.abspath(args.hasura_path),
-                env_path=os.path.abspath(args.env_path) if args.env_path else None,
-                apply=args.apply)
+                env_path=os.path.abspath(args.env_path) if args.env_path else None)
 
 
 def loadConfigFile(endpoint: str, secret: str, config_folder: str) -> (str, str):
@@ -751,5 +753,6 @@ if __name__ == "__main__":
   arguments = createArgsParser().parse_args()
   try:
     arguments.func(arguments)
-  except AttributeError:
+  except AttributeError as e:
+    print(e)
     createArgsParser().print_help()
