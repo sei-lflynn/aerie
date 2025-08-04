@@ -31,7 +31,7 @@ public final class WorkspaceAppDriver {
     final var stores = loadStores(configuration);
 
     // Assemble the core non-web object graph.
-    final var workspaceBindings = new WorkspaceBindings(stores.jwt, stores.workspace);
+    final var workspaceBindings = new WorkspaceBindings(stores.jwt, stores.workspace, configuration.hasuraAdminSecret());
     // Configure an HTTP server.
     //default javalin jetty server has a QueuedThreadPool with maxThreads to 250
     final var server = new Server(new QueuedThreadPool(250));
@@ -115,6 +115,7 @@ public final class WorkspaceAppDriver {
         logger.isDebugEnabled(),
         Path.of(getEnv("WORKSPACE_STORE", "/usr/src/ws")),
         jwtSecret,
+        getEnv("HASURA_GRAPHQL_ADMIN_SECRET", ""),
         new PostgresStore(getEnv("AERIE_DB_HOST", "postgres"),
                           getEnv("SEQUENCING_DB_USER", ""),
                           Integer.parseInt(getEnv("AERIE_DB_PORT", "5432")),

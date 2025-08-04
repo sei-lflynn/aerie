@@ -9,6 +9,7 @@ public record AppConfiguration (
     boolean enableJavalinDevLogging,
     Path workspaceFileStore,
     JsonObject jwtSecret,
+    String hasuraAdminSecret,
     Store store
 ) {
   public AppConfiguration {
