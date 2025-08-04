@@ -594,6 +594,10 @@ def status(args: argparse.Namespace):
 
   display_string = f"\n\033[4mMIGRATION STATUS:\033[0m\n"
   display_string += "\n".join(hasura.get_migrate_status())
+
+  if hasura.__check_pause_after__(hasura.current_version):
+    display_string += (f'\nCurrent version {hasura.current_version} has pending tasks to run!')
+
   print(display_string)
 
 
