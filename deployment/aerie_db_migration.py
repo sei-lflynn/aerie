@@ -407,6 +407,8 @@ class Hasura:
         print_error(f"Received {resp.status_code} status while uploading seq JSON sequence to the Workspaces Server.\n"
                     f"Error message: {resp.text}")
         return False
+
+    print("Successfully applied workspace file migration\n")
     return True
 
 
