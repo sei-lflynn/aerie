@@ -37,6 +37,7 @@ class Hasura:
   """
   command_suffix = ''
   migrate_suffix = ''
+  metadata_suffix = ''
   endpoint = ''
   admin_secret = ''
   db_name = 'Aerie'
@@ -67,6 +68,8 @@ class Hasura:
 
     # Set up the suffix flags to use when calling the 'migrate' subcommand on the CLI
     self.migrate_suffix = f"--database-name {self.db_name} --endpoint {self.endpoint} --admin-secret '{self.admin_secret}'"
+    # Suffix flags to use when calling the 'metadata' subcommands on the CLI
+    self.metadata_suffix = f"--endpoint {self.endpoint} --admin-secret '{self.admin_secret}'"
 
     # Check that Hasura CLI is installed
     if not shutil.which('hasura'):
@@ -187,8 +190,8 @@ class Hasura:
     """
     Apply and reload the metadata.
     """
-    self.execute(f'metadata apply {self.migrate_suffix} {self.command_suffix}')
-    self.execute(f'metadata reload {self.migrate_suffix} {self.command_suffix}')
+    self.execute(f'metadata apply {self.metadata_suffix} {self.command_suffix}')
+    self.execute(f'metadata reload {self.metadata_suffix} {self.command_suffix}')
 
   def __check_pause_after__(self, migration_id: int) -> bool:
     """
@@ -381,7 +384,7 @@ class Hasura:
         files=seqJsonFile)
 
       if not resp.ok:
-        print_error(f"Received {resp.status_code} status while uploading sequence to the Workspaces Server.\n"
+        print_error(f"Received {resp.status_code} status while uploading seq JSON sequence to the Workspaces Server.\n"
                     f"Error message: {resp.text}")
         return False
     return True
