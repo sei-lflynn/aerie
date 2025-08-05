@@ -101,18 +101,15 @@ public class WorkspaceBindings implements Plugin {
     if (hasuraAdminSecret != null) {
       if (this.hasuraAdminSecret.isEmpty()) {
         // If the Hasura admin secret environment variable hasn't been set, fail closed
-        context.status(401).result("Hasura admin secret authentication unavailable because HASURA_GRAPHQL_ADMIN_SECRET was not set");
-        throw new UnauthorizedResponse();
+        throw new UnauthorizedResponse("Hasura admin secret authentication unavailable because HASURA_GRAPHQL_ADMIN_SECRET was not set");
       }
 
       if (userId == null) {
-        context.status(401).result("x-hasura-user-id header is required when x-hasura-admin-secret is set");
-        throw new UnauthorizedResponse();
+        throw new UnauthorizedResponse("x-hasura-user-id header is required when x-hasura-admin-secret is set");
       }
 
       if (!this.hasuraAdminSecret.equals(hasuraAdminSecret)) {
-        context.status(401).result("Invalid Hasura admin secret");
-        throw new UnauthorizedResponse();
+        throw new UnauthorizedResponse("Invalid Hasura admin secret");
       }
 
       return new JWTService.UserSession(userId, activeRole);
@@ -120,8 +117,7 @@ public class WorkspaceBindings implements Plugin {
       try {
         return jwtService.validateAuthorization(authHeader, activeRole);
       } catch (JWTVerificationException jve) {
-        context.status(401).result(jve.getMessage());
-        throw new UnauthorizedResponse();
+        throw new UnauthorizedResponse(jve.getMessage());
       }
     }
   }
