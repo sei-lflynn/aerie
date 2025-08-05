@@ -9,6 +9,7 @@ import gov.nasa.jpl.aerie.workspace.server.config.UnexpectedSubtypeError;
 import gov.nasa.jpl.aerie.workspace.server.postgres.WorkspacePostgresRepository;
 import io.javalin.Javalin;
 import io.javalin.config.SizeUnit;
+import io.javalin.http.UnauthorizedResponse;
 import io.javalin.plugin.bundled.CorsPluginConfig;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.LowResourceMonitor;
@@ -16,6 +17,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.json.Json;
@@ -25,13 +27,15 @@ import java.nio.file.Path;
 
 public final class WorkspaceAppDriver {
 
+  private static final Logger logger = LoggerFactory.getLogger(WorkspaceBindings.class);
+
   public static void main(final String[] args) {
     // Fetch application configuration properties.
     final var configuration = loadConfiguration();
     final var stores = loadStores(configuration);
 
     // Assemble the core non-web object graph.
-    final var workspaceBindings = new WorkspaceBindings(stores.jwt, stores.workspace);
+    final var workspaceBindings = new WorkspaceBindings(stores.jwt, stores.workspace, configuration.hasuraAdminSecret());
     // Configure an HTTP server.
     //default javalin jetty server has a QueuedThreadPool with maxThreads to 250
     final var server = new Server(new QueuedThreadPool(250));
@@ -55,6 +59,12 @@ public final class WorkspaceAppDriver {
       config.plugins.enableCors(cors -> cors.add(CorsPluginConfig::anyHost));
       config.plugins.register(workspaceBindings);
       config.jetty.server(() -> server);
+    });
+
+    javalin.exception(UnauthorizedResponse.class, (e, ctx) -> {
+      var message = e.getMessage() != null ? e.getMessage() : "Unauthorized";
+      logger.warn("401 Unauthorized: {}", message);
+      ctx.status(401).result(message);
     });
 
     // Start the HTTP server.
@@ -115,6 +125,7 @@ public final class WorkspaceAppDriver {
         logger.isDebugEnabled(),
         Path.of(getEnv("WORKSPACE_STORE", "/usr/src/ws")),
         jwtSecret,
+        getEnv("HASURA_GRAPHQL_ADMIN_SECRET", ""),
         new PostgresStore(getEnv("AERIE_DB_HOST", "postgres"),
                           getEnv("SEQUENCING_DB_USER", ""),
                           Integer.parseInt(getEnv("AERIE_DB_PORT", "5432")),

@@ -37,12 +37,13 @@ class Hasura:
   """
   command_suffix = ''
   migrate_suffix = ''
+  metadata_suffix = ''
   endpoint = ''
   admin_secret = ''
   db_name = 'Aerie'
   current_version = 0
 
-  def __init__(self, endpoint: str, admin_secret: str, hasura_path: str, env_path: str, apply: bool, db_name='Aerie'):
+  def __init__(self, endpoint: str, admin_secret: str, hasura_path: str, env_path: str, db_name='Aerie'):
     """
     Initialize a Hasura object.
 
@@ -67,6 +68,8 @@ class Hasura:
 
     # Set up the suffix flags to use when calling the 'migrate' subcommand on the CLI
     self.migrate_suffix = f"--database-name {self.db_name} --endpoint {self.endpoint} --admin-secret '{self.admin_secret}'"
+    # Suffix flags to use when calling the 'metadata' subcommands on the CLI
+    self.metadata_suffix = f"--endpoint {self.endpoint} --admin-secret '{self.admin_secret}'"
 
     # Check that Hasura CLI is installed
     if not shutil.which('hasura'):
@@ -76,10 +79,6 @@ class Hasura:
 
     # Mark the current schema version in Hasura
     self.current_version = self.mark_current_version()
-
-    # Check that the latest version doesn't have a pending "after" task to be addressed
-    if not self.apply_after(self.current_version, apply):
-      exit(2)
 
   def execute(self, subcommand: str, flags='', no_output=False) -> int:
     """
@@ -156,6 +155,7 @@ class Hasura:
     session = requests.Session()
     resp = session.post(url=run_sql_url, headers=headers, json=body)
     if not resp.ok:
+      print(resp.text)
       exit_with_error("Error while fetching current schema information.")
 
     migration_ids = resp.json()['result']
@@ -190,8 +190,8 @@ class Hasura:
     """
     Apply and reload the metadata.
     """
-    self.execute('metadata apply')
-    self.execute('metadata reload')
+    self.execute(f'metadata apply', self.metadata_suffix)
+    self.execute(f'metadata reload', self.metadata_suffix)
 
   def __check_pause_after__(self, migration_id: int) -> bool:
     """
@@ -349,36 +349,71 @@ class Hasura:
     if results.pop(0)[0] != 'id':
       exit_with_error("Error while fetching user sequences from the database.")
 
+    # admin headers for making requests to the workspace service without a JWT
+    workspace_service_headers = {
+      "x-hasura-admin-secret": self.admin_secret,
+      "x-hasura-role": "aerie_admin",
+      "x-hasura-user-id": "Aerie Legacy"
+    }
+
+    # Assign each seqId to a unique name
+    claimed_names = {}  # map of workspace_id -> set of claimed names in that workspace
+    for row in results:
+      seqId = int(row[0])
+      name = row[1]
+      workspace_id = int(row[2])
+
+      if workspace_id not in claimed_names:
+        claimed_names[workspace_id] = set()
+
+      names_in_workspace = claimed_names[workspace_id]
+      if name not in names_in_workspace:  # Prefer the original name if it is unique so far
+        row.append(name)
+        names_in_workspace.add(name)
+      elif f"{name}_{seqId}" not in names_in_workspace:  # If there's a name clash, append the seq_id
+        row.append(f"{name}_{seqId}")
+        names_in_workspace.add(f"{name}_{seqId}")
+      else:
+        counter = 1
+        while f"{name}_{seqId}_{counter}" in names_in_workspace:  # Fall back to a counter if we still have a collision
+          counter += 1
+        row.append(f"{name}_{seqId}_{counter}")
+        names_in_workspace.add(f"{name}_{seqId}_{counter}")
+
     # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
-    # Save definition (.seq.user) and seq_json (.seq.json)
+    # Save definition (.seq) and seq_json (.seq.json)
     for row in results:
       seqId = int(row[0])
       name = row[1]
       workspace_id = int(row[2])
       definition = row[3]
       seq_json = row[4]
+      unique_name = row[-1]  # We appended this item above
 
-      uSeqFile = {'file': (f'{name}_{seqId}.seq.user', definition)}
-      seqJsonFile = {'file': (f'{name}_{seqId}.seq.json', seq_json)}
-
-      # Save definition (saving as file extension `.seq.user`)
+      # Save definition (saving as file extension `.seq`)
+      seq_filename = f"{unique_name}.seq"
       resp = session.put(
-        url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.user?type=file',
-        files=uSeqFile)
+        url=f'{endpoint}/ws/{workspace_id}/{seq_filename}?type=file',
+        headers=workspace_service_headers,
+        files={'file': (seq_filename, definition)})
       if not resp.ok:
         print_error(f"Received {resp.status_code} status while uploading sequence to the Workspaces Server.\n"
                     f"Error message: {resp.text}")
         return False
 
       # Save SeqJson
+      seq_json_filename = f"{unique_name}.seq.json"
       resp = session.put(
-        url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.json?type=file',
-        files=seqJsonFile)
+        url=f'{endpoint}/ws/{workspace_id}/{seq_json_filename}?type=file',
+        headers=workspace_service_headers,
+        files={'file': (seq_json_filename, seq_json)})
 
       if not resp.ok:
-        print_error(f"Received {resp.status_code} status while uploading sequence to the Workspaces Server.\n"
+        print_error(f"Received {resp.status_code} status while uploading seq JSON sequence to the Workspaces Server.\n"
                     f"Error message: {resp.text}")
         return False
+
+    print("Successfully applied workspace file migration\n")
     return True
 
 
@@ -559,6 +594,11 @@ def migrate(args: argparse.Namespace):
   hasura = create_hasura(arguments)
 
   clear_screen()
+
+  # Check that the latest version doesn't have a pending "after" task to be addressed and apply it if so
+  if not hasura.apply_after(hasura.current_version, args.apply):
+    exit(2)
+
   print(f'\n###############################'
         f'\nAERIE DATABASE MIGRATION HELPER'
         f'\n###############################'
@@ -591,6 +631,10 @@ def status(args: argparse.Namespace):
 
   display_string = f"\n\033[4mMIGRATION STATUS:\033[0m\n"
   display_string += "\n".join(hasura.get_migrate_status())
+
+  if hasura.__check_pause_after__(hasura.current_version):
+    display_string += (f'\nCurrent version {hasura.current_version} has pending tasks to run!')
+
   print(display_string)
 
 
@@ -623,8 +667,7 @@ def create_hasura(args: argparse.Namespace) -> Hasura:
                 admin_secret=hasura_admin_secret,
                 db_name="Aerie",
                 hasura_path=os.path.abspath(args.hasura_path),
-                env_path=os.path.abspath(args.env_path) if args.env_path else None,
-                apply=args.apply)
+                env_path=os.path.abspath(args.env_path) if args.env_path else None)
 
 
 def loadConfigFile(endpoint: str, secret: str, config_folder: str) -> (str, str):
@@ -751,5 +794,6 @@ if __name__ == "__main__":
   arguments = createArgsParser().parse_args()
   try:
     arguments.func(arguments)
-  except AttributeError:
+  except AttributeError as e:
+    print(e)
     createArgsParser().print_help()

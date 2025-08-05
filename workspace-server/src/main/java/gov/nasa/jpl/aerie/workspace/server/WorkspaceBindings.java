@@ -33,10 +33,12 @@ public class WorkspaceBindings implements Plugin {
   private static final Logger logger = LoggerFactory.getLogger(WorkspaceBindings.class);
   private final JWTService jwtService;
   private final WorkspaceService workspaceService;
+  private final String hasuraAdminSecret;
 
-  public WorkspaceBindings(final JWTService jwtService, final WorkspaceService workspaceService) {
+  public WorkspaceBindings(final JWTService jwtService, final WorkspaceService workspaceService, final String hasuraAdminSecret) {
     this.jwtService = jwtService;
     this.workspaceService = workspaceService;
+    this.hasuraAdminSecret = hasuraAdminSecret;
   }
 
   private record PathInformation(int workspaceId, Path filePath) {
@@ -92,12 +94,31 @@ public class WorkspaceBindings implements Plugin {
    */
   private JWTService.UserSession authorize(Context context) {
     final var authHeader = context.header("Authorization");
+    final var hasuraAdminSecret = context.header("x-hasura-admin-secret");
     final var activeRole = context.header("x-hasura-role");
-    try{
-      return jwtService.validateAuthorization(authHeader, activeRole);
-    } catch (JWTVerificationException jve) {
-      context.status(401);
-      throw new UnauthorizedResponse();
+    final var userId = context.header("x-hasura-user-id");
+
+    if (hasuraAdminSecret != null) {
+      if (this.hasuraAdminSecret.isEmpty()) {
+        // If the Hasura admin secret environment variable hasn't been set, fail closed
+        throw new UnauthorizedResponse("Hasura admin secret authentication unavailable because HASURA_GRAPHQL_ADMIN_SECRET was not set");
+      }
+
+      if (userId == null) {
+        throw new UnauthorizedResponse("x-hasura-user-id header is required when x-hasura-admin-secret is set");
+      }
+
+      if (!this.hasuraAdminSecret.equals(hasuraAdminSecret)) {
+        throw new UnauthorizedResponse("Invalid Hasura admin secret");
+      }
+
+      return new JWTService.UserSession(userId, activeRole);
+    } else {
+      try {
+        return jwtService.validateAuthorization(authHeader, activeRole);
+      } catch (JWTVerificationException jve) {
+        throw new UnauthorizedResponse(jve.getMessage());
+      }
     }
   }
 

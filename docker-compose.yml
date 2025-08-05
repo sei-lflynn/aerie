@@ -143,6 +143,7 @@ services:
       WORKSPACE_STORE: /usr/src/ws
       WORKSPACE_PORT: 28000
       HASURA_GRAPHQL_JWT_SECRET: "${HASURA_GRAPHQL_JWT_SECRET}"
+      HASURA_GRAPHQL_ADMIN_SECRET: "${HASURA_GRAPHQL_ADMIN_SECRET}"
       JAVA_OPTS: >
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
         -Dorg.slf4j.simpleLogger.defaultLogLevel=INFO
