@@ -190,8 +190,8 @@ class Hasura:
     """
     Apply and reload the metadata.
     """
-    self.execute(f'metadata apply {self.metadata_suffix} {self.command_suffix}')
-    self.execute(f'metadata reload {self.metadata_suffix} {self.command_suffix}')
+    self.execute(f'metadata apply', self.metadata_suffix)
+    self.execute(f'metadata reload', self.metadata_suffix)
 
   def __check_pause_after__(self, migration_id: int) -> bool:
     """
@@ -352,8 +352,8 @@ class Hasura:
     # admin headers for making requests to the workspace service without a JWT
     workspace_service_headers = {
       "x-hasura-admin-secret": self.admin_secret,
-      "x-hasura-role": "admin",
-      "x-hasura-user-id": "migration-script"
+      "x-hasura-role": "aerie_admin",
+      "x-hasura-user-id": "Aerie Legacy"
     }
     # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
     # Save definition (.seq.user) and seq_json (.seq.json)

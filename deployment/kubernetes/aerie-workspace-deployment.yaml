@@ -49,6 +49,11 @@ spec:
                 secretKeyRef:
                   name: dev-env
                   key: HASURA_GRAPHQL_JWT_SECRET
+            - name: HASURA_GRAPHQL_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dev-env
+                  key: HASURA_GRAPHQL_ADMIN_SECRET
       restartPolicy: Always
       volumes:
         - name: workspace_file_store
