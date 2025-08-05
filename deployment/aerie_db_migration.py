@@ -355,33 +355,53 @@ class Hasura:
       "x-hasura-role": "aerie_admin",
       "x-hasura-user-id": "Aerie Legacy"
     }
+
+    # Assign each seqId to a unique name
+    claimed_names = set()
+    for row in results:
+      seqId = int(row[0])
+      name = row[1]
+
+      if name not in claimed_names:  # Prefer the original name if it is unique so far
+        row.append(name)
+        claimed_names.add(name)
+      elif f"{name}_{seqId}" not in claimed_names:  # If there's a name clash, append the seq_id
+        row.append(f"{name}_{seqId}")
+        claimed_names.add(f"{name}_{seqId}")
+      else:
+        counter = 1
+        while f"{name}_{seqId}_{counter}" in claimed_names:  # Fall back to a counter if we still have a collision
+          counter += 1
+        row.append(f"{name}_{seqId}_{counter}")
+        claimed_names.add(f"{name}_{seqId}_{counter}")
+
     # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
-    # Save definition (.seq.user) and seq_json (.seq.json)
+    # Save definition (.seq) and seq_json (.seq.json)
     for row in results:
       seqId = int(row[0])
       name = row[1]
       workspace_id = int(row[2])
       definition = row[3]
       seq_json = row[4]
+      unique_name = row[-1]  # We appended this item above
 
-      uSeqFile = {'file': (f'{name}_{seqId}.seq.user', definition)}
-      seqJsonFile = {'file': (f'{name}_{seqId}.seq.json', seq_json)}
-
-      # Save definition (saving as file extension `.seq.user`)
+      # Save definition (saving as file extension `.seq`)
+      seq_filename = f"{unique_name}.seq"
       resp = session.put(
-        url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.user?type=file',
+        url=f'{endpoint}/ws/{workspace_id}/{seq_filename}?type=file',
         headers=workspace_service_headers,
-        files=uSeqFile)
+        files={'file': (seq_filename, definition)})
       if not resp.ok:
         print_error(f"Received {resp.status_code} status while uploading sequence to the Workspaces Server.\n"
                     f"Error message: {resp.text}")
         return False
 
       # Save SeqJson
+      seq_json_filename = f"{unique_name}.seq.json"
       resp = session.put(
-        url=f'{endpoint}/ws/{workspace_id}/{name}_{seqId}.seq.json?type=file',
+        url=f'{endpoint}/ws/{workspace_id}/{seq_json_filename}?type=file',
         headers=workspace_service_headers,
-        files=seqJsonFile)
+        files={'file': (seq_json_filename, seq_json)})
 
       if not resp.ok:
         print_error(f"Received {resp.status_code} status while uploading seq JSON sequence to the Workspaces Server.\n"
