@@ -357,23 +357,28 @@ class Hasura:
     }
 
     # Assign each seqId to a unique name
-    claimed_names = set()
+    claimed_names = {}  # map of workspace_id -> set of claimed names in that workspace
     for row in results:
       seqId = int(row[0])
       name = row[1]
+      workspace_id = int(row[2])
 
-      if name not in claimed_names:  # Prefer the original name if it is unique so far
+      if workspace_id not in claimed_names:
+        claimed_names[workspace_id] = set()
+
+      names_in_workspace = claimed_names[workspace_id]
+      if name not in names_in_workspace:  # Prefer the original name if it is unique so far
         row.append(name)
-        claimed_names.add(name)
-      elif f"{name}_{seqId}" not in claimed_names:  # If there's a name clash, append the seq_id
+        names_in_workspace.add(name)
+      elif f"{name}_{seqId}" not in names_in_workspace:  # If there's a name clash, append the seq_id
         row.append(f"{name}_{seqId}")
-        claimed_names.add(f"{name}_{seqId}")
+        names_in_workspace.add(f"{name}_{seqId}")
       else:
         counter = 1
-        while f"{name}_{seqId}_{counter}" in claimed_names:  # Fall back to a counter if we still have a collision
+        while f"{name}_{seqId}_{counter}" in names_in_workspace:  # Fall back to a counter if we still have a collision
           counter += 1
         row.append(f"{name}_{seqId}_{counter}")
-        claimed_names.add(f"{name}_{seqId}_{counter}")
+        names_in_workspace.add(f"{name}_{seqId}_{counter}")
 
     # Upload files to workspace -- saveFile in WorkspaceService.java will make the workspace's root dir
     # Save definition (.seq) and seq_json (.seq.json)
