@@ -180,6 +180,8 @@ services:
     restart: always
     volumes:
       - workspace_file_store:/usr/src/ws
+    networks:
+      - aerie_net
   aerie_ui:
     container_name: aerie_ui
     depends_on: ["postgres"]
