@@ -241,7 +241,7 @@ public class WorkspaceBindings implements Plugin {
         context.header("x-render-type", workspaceService.getFileType(pathInfo.filePath).name());
         context.contentType(ContentType.OCTET_STREAM);
         context.header("Content-Disposition", "attachment; filename=\"" + pathInfo.fileName() + "\"");
-        context.header("Content-Length", "" + fileStream.fileSize());
+//        context.header("Content-Length", "" + fileStream.fileSize());
         context.status(200).result(inputStream);
       } catch (IOException | SQLException e) {
         context.status(500).result("Could not load file " + pathInfo.fileName());
