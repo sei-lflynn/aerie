@@ -6,10 +6,12 @@ import { ActionsAPI } from "@nasa-jpl/aerie-actions";
 import { configuration } from "../config";
 import type { ActionConfig, ActionResponse } from "../type/types";
 
-// todo put this inside a more limited closure scope or it will get reused...
-// const logBuffer: string[] = [];
+const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE, WORKSPACE_BASE_URL, HASURA_GRAPHQL_ADMIN_SECRET } = configuration();
 
-function injectLogger(oldConsole: any, logBuffer: string[]) {
+function injectLogger(oldConsole: any, logBuffer: string[], secrets?: Record<string, any> | undefined) {
+  // secrets may be passed as last argument, to be censored in the logs
+  secrets = secrets || {};
+  secrets['HASURA_GRAPHQL_ADMIN_SECRET'] = HASURA_GRAPHQL_ADMIN_SECRET;
   // inject a winston logger to be passed to the action VM, replacing its normal `console`,
   // so we can capture the console outputs and return them with the action results
   const logger = createLogger({
@@ -17,9 +19,20 @@ function injectLogger(oldConsole: any, logBuffer: string[]) {
     format: format.combine(
       format.timestamp(),
       format.printf(({ level, message, timestamp }) => {
-        const logLine = `${timestamp} [${level.toUpperCase()}] ${message}`;
 
-        logBuffer.push(logLine);
+        const logLine = `${timestamp} [${level.toUpperCase()}] `;
+        let output = message as string;
+
+        // If the action has secrets filter them out of the log.
+        if (secrets !== undefined && Object.keys(secrets).length > 0) {
+          const secretValues = Object.values(secrets);
+
+          for (const secretValue of secretValues) {
+            output = output.replaceAll(secretValue, "*****");
+          }
+        }
+
+        logBuffer.push(logLine + output);
 
         return logLine;
       }),
@@ -57,8 +70,6 @@ function getGlobals() {
   // todo: pass env variables from the parent process?
   return aerieGlobal;
 }
-
-const { ACTION_LOCAL_STORE, SEQUENCING_LOCAL_STORE, WORKSPACE_BASE_URL, HASURA_GRAPHQL_ADMIN_SECRET } = configuration();
 
 export const jsExecute = async (
   code: string,
