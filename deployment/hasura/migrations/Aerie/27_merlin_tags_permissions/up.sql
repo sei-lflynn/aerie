@@ -11,9 +11,9 @@ do $$
     limit 1
     into merlin_user;
 
-    execute format('revoke select, insert on table tags.tags from %I', merlin_user);
-    execute format('revoke usage on schema tags from %I', merlin_user);
+    execute format('grant usage on schema tags to %I', merlin_user);
+    execute format('grant select, insert on table tags.tags to %I', merlin_user);
   end
 $$;
 
-call migrations.mark_migration_rolled_back('25');
+call migrations.mark_migration_applied('27');
