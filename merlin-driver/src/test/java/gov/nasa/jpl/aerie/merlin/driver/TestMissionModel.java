@@ -192,6 +192,11 @@ public class TestMissionModel {
               }
 
               @Override
+              public List<String> getSubsystems() {
+                return List.of();
+              }
+
+              @Override
               public Object instantiate(
                   final Instant planStart,
                   final Object configuration,
