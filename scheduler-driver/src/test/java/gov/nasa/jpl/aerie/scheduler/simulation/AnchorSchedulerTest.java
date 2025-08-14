@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -812,6 +813,11 @@ public class AnchorSchedulerTest {
             @Override
             public InputType<Object> getConfigurationType() {
               return testModelInputType;
+            }
+
+            @Override
+            public List<String> getSubsystems() {
+              return Collections.emptyList();
             }
 
             @Override
