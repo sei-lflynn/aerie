@@ -42,7 +42,9 @@ public interface DirectiveType<Model, Arguments, Result> {
    *
    * @return The subsystem of this directive.
    */
-  Optional<String> getSubsystem();
+  default Optional<String> getSubsystem() {
+    return Optional.empty();
+  }
 
   /**
    * Initializes a {@link Task} operating on the given model given a directive instance.
