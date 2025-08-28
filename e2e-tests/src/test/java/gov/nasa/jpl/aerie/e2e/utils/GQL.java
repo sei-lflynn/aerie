@@ -293,6 +293,9 @@ public enum GQL {
         name
         parameters
         computed_attributes_value_schema
+        subsystem:subsystem_tag {
+          name
+        }
       }
     }"""),
   GET_CONSTRAINT_REQUEST("""

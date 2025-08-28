@@ -27,6 +27,9 @@
 @WithActivityType(RipenBananaActivity.class)
 @WithActivityType(ExceptionActivity.class)
 
+@WithSubsystem("Prepare")
+@WithSubsystem("Eat")
+
 package gov.nasa.jpl.aerie.banananation;
 
 import gov.nasa.jpl.aerie.banananation.activities.BakeBananaBreadActivity;
@@ -53,3 +56,4 @@ import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel.WithActivity
 import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel.WithMetadata;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel.WithConfiguration;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel.WithMappers;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.MissionModel.WithSubsystem;

@@ -340,9 +340,12 @@ public final class LocalMissionModelService implements MissionModelService {
             name,
             inputType.getParameters(),
             inputType.getRequiredParameters(),
-            outputType.getSchema()));
+            outputType.getSchema(),
+            directiveType.getSubsystem()
+        ));
       });
-      this.missionModelRepository.updateActivityTypes(missionModelId, activityTypes);
+      final var subsystems = modelType.getSubsystems();
+      this.missionModelRepository.updateActivityTypes(missionModelId, activityTypes, subsystems);
     } catch (final MissionModelRepository.NoSuchMissionModelException ex) {
       throw new NoSuchMissionModelException(missionModelId, ex);
     }

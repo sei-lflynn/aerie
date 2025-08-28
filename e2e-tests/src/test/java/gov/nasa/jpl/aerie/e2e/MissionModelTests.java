@@ -91,13 +91,15 @@ public class MissionModelTests {
             "tbSugar", new Parameter(1, VALUE_SCHEMA_INT),
             "glutenFree", new Parameter(2, VALUE_SCHEMA_BOOLEAN),
             "temperature", new Parameter(0, VALUE_SCHEMA_REAL)),
-        VALUE_SCHEMA_INT));
+        VALUE_SCHEMA_INT,
+        "Prepare"));
     activityTypes.add(new ActivityType("BananaNap", Map.of()));
     activityTypes.add(new ActivityType(
         "BiteBanana",
         Map.of("biteSize", new Parameter(0, new ValueSchemaMeta(Map.of("unit", Json.createObjectBuilder(Map.of("value", "m")).build(), "banannotation", Json.createObjectBuilder().add("value", Json.createValue("Specifies the size of bite to take")).build()), VALUE_SCHEMA_REAL))),
-        new ValueSchemaStruct(Map.of("biteSizeWasBig", VALUE_SCHEMA_BOOLEAN, "newFlag", new ValueSchemaVariant(List.of(new Variant("A", "A"), new Variant("B", "B")))))
-        ));
+        new ValueSchemaStruct(Map.of("biteSizeWasBig", VALUE_SCHEMA_BOOLEAN, "newFlag", new ValueSchemaVariant(List.of(new Variant("A", "A"), new Variant("B", "B"))))),
+        "Eat"
+    ));
     activityTypes.add(new ActivityType("ChangeProducer", Map.of("producer", new Parameter(0, VALUE_SCHEMA_STRING))));
     activityTypes.add(new ActivityType("child", Map.of("counter", new Parameter(0, VALUE_SCHEMA_INT))));
     activityTypes.add(new ActivityType("ControllableDurationActivity", Map.of("duration", new Parameter(0, VALUE_SCHEMA_DURATION))));
@@ -115,7 +117,9 @@ public class MissionModelTests {
         Map.of("duration", new Parameter(0, VALUE_SCHEMA_DURATION)),
         new ValueSchemaStruct(Map.of(
             "duration", VALUE_SCHEMA_DURATION,
-            "durationInSeconds", new ValueSchemaMeta(Map.of("unit", Json.createObjectBuilder(Map.of("value", "s")).build()), VALUE_SCHEMA_REAL)))));
+            "durationInSeconds", new ValueSchemaMeta(Map.of("unit", Json.createObjectBuilder(Map.of("value", "s")).build()), VALUE_SCHEMA_REAL))),
+        null
+    ));
     activityTypes.add(new ActivityType("ExceptionActivity", Map.of("throwException", new Parameter(0, VALUE_SCHEMA_BOOLEAN))));
     activityTypes.add(new ActivityType("grandchild", Map.of("counter", new Parameter(0, VALUE_SCHEMA_INT))));
     activityTypes.add(new ActivityType("GrowBanana", Map.of(
@@ -315,9 +319,11 @@ public class MissionModelTests {
                    new ValueSchemaMeta(Map.of("unit", Json.createObjectBuilder(Map.of("value", "direction")).build()),
                    new ValueSchemaVariant(List.of(
                        new Variant("fromStem", "fromStem"),
-                       new Variant("fromTip", "fromTip"))))))));
+                       new Variant("fromTip", "fromTip")))))),
+        "Prepare"
+    ));
     activityTypes.add(new ActivityType("PickBanana", Map.of("quantity", new Parameter(0, VALUE_SCHEMA_INT))));
-    activityTypes.add(new ActivityType("RipenBanana", Map.of()));
+    activityTypes.add(new ActivityType("RipenBanana", Map.of(), "Prepare"));
     activityTypes.add(new ActivityType("ThrowBanana", Map.of("speed", new Parameter(0, VALUE_SCHEMA_REAL))));
     return activityTypes;
   }

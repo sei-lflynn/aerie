@@ -6,8 +6,10 @@ import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType.EffectModel;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export.Validation;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export.WithDefaults;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 
 @ActivityType("BakeBananaBread")
+@Subsystem("Prepare")
 public record BakeBananaBreadActivity(double temperature, int tbSugar, boolean glutenFree) {
 
   @Validation

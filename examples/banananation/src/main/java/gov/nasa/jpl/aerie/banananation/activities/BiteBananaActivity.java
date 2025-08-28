@@ -9,16 +9,17 @@ import gov.nasa.jpl.aerie.merlin.framework.annotations.ActivityType.EffectModel;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.AutoValueMapper;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export.Parameter;
 import gov.nasa.jpl.aerie.merlin.framework.annotations.Export.Validation;
+import gov.nasa.jpl.aerie.merlin.framework.annotations.Subsystem;
 
 /**
  * Bite a banana.
  *
  * This activity causes a piece of banana to be bitten off and consumed.
  *
- * @subsystem fruit
  * @contact John Doe
  */
 @ActivityType("BiteBanana")
+@Subsystem("Eat")
 public final class BiteBananaActivity {
   @Parameter
 
