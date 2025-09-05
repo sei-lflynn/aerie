@@ -36,11 +36,11 @@ on:
 
   # Run on pushes to the default branch (publishing supported only from default)
   push:
-    branches: [ "main" ]  # ← change if your default branch is not "main"
+    branches: [ "develop" ]  # ← change if your default branch is not "main"
 
   # Run on PRs so contributors see findings before merge
   pull_request:
-    branches: [ "main" ]
+    branches: [ "develop" ]
     paths:
       # TIP: Narrow these as you like; leaving **/* ensures checks run when any file changes
       - "**/*"
