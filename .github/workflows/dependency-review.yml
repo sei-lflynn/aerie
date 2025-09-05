@@ -1,0 +1,190 @@
+# Dependency Review (PRs and Pushes) — hardened & freshman-friendly
+# =============================================================================
+# What this workflow does:
+#   • On PRs that change dependency manifests: runs GitHub’s Dependency Review,
+#     annotates the PR, and (optionally) comments a summary.
+#   • On pushes to main (or your chosen branches): compares the new commit to
+#     the previous one to catch vulnerable upgrades outside PRs.
+#
+# Key practices:
+#   • Default-deny permissions at workflow level; jobs elevate only what they need.
+#   • Pin third-party actions to commit SHAs (reproducible, tamper-resistant).
+#   • Guard untrusted PRs (use pull_request, not pull_request_target).
+#   • Concurrency cancels superseded runs to avoid CI pile-ups.
+#   • Timeouts cap spend and fail fast.
+#   • Harden egress (audit → later block + allowlist).
+#   • Scoped checkout creds (no pushes from this workflow).
+#   • Trigger only when dependency files or this workflow change.
+
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [ "main" ]                 # tune for your branching model
+    # Run only if dependency manifests change (adjust for your ecosystems)
+    paths:
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/yarn.lock"
+      - "**/pnpm-lock.yaml"
+      - "**/pom.xml"
+      - "**/build.gradle"
+      - "**/build.gradle.kts"
+      - "**/gradle.lockfile"
+      - "**/go.mod"
+      - "**/go.sum"
+      - "**/requirements*.txt"
+      - "**/Pipfile"
+      - "**/Pipfile.lock"
+      - "**/pyproject.toml"
+      - "**/poetry.lock"
+      - "**/Gemfile"
+      - "**/Gemfile.lock"
+      - "**/composer.json"
+      - "**/composer.lock"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/dependency-review.yml"
+
+  # Also run on pushes (e.g., to main) so direct commits are covered
+  push:
+    branches: [ "main" ]                 # add release/* or others if you want
+    paths:
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/yarn.lock"
+      - "**/pnpm-lock.yaml"
+      - "**/pom.xml"
+      - "**/build.gradle"
+      - "**/build.gradle.kts"
+      - "**/gradle.lockfile"
+      - "**/go.mod"
+      - "**/go.sum"
+      - "**/requirements*.txt"
+      - "**/Pipfile"
+      - "**/Pipfile.lock"
+      - "**/pyproject.toml"
+      - "**/poetry.lock"
+      - "**/Gemfile"
+      - "**/Gemfile.lock"
+      - "**/composer.json"
+      - "**/composer.lock"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/dependency-review.yml"
+
+  workflow_dispatch:                      # manual run for testing
+
+# Cancel older in-flight runs on the same ref/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny: read-only by default
+permissions:
+  contents: read
+
+jobs:
+  # ---------------- PR job: comments allowed (needs pull-requests: write) ----------------
+  dependency-review-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Dependency review (PR)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Least privilege for PRs:
+    # - contents: read → checkout
+    # - pull-requests: write → to post a summary comment (optional)
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+          # Later, prefer:
+          # egress-policy: block
+          # allowed-endpoints: >
+          #   api.github.com:443
+          #   github.com:443
+          #   objects.githubusercontent.com:443
+
+      - name: Checkout repository (no persisted creds)
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Dependency Review on PRs uses the PR’s base/head automatically.
+      - name: Dependency Review (PR)
+        uses: actions/dependency-review-action@595b5aeba73380359d98a5e087f648dbb0edce1b # v4.7.3
+        with:
+          comment-summary-in-pr: always     # requires pull-requests: write
+          # Enforcement knobs (uncomment to gate merges):
+          # fail-on-severity: moderate      # block if any vuln ≥ moderate
+          # fail-on-cvss: 7                 # or gate by CVSS score
+          # deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later
+          # allow-ghsas: GHSA-xxxx-...,GHSA-yyyy-...   # fine-grained allowlist
+          # deny-ghsas:  GHSA-zzzz-...                 # fine-grained denylist
+          # retry-on-snapshot-warnings: true           # Maven snapshots
+          # retry-on-snapshot-warnings-timeout: 60
+
+  # ---------------- Push job: no PR comment (tighter permissions) ----------------
+  dependency-review-push:
+    if: ${{ github.event_name == 'push' }}
+    name: Dependency review (push)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Tighter: no PR write on push
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # We need at least the previous commit for a diff; fetch-depth: 2 is enough.
+      - name: Checkout repository (no persisted creds)
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      # Compute a safe base ref for pushes:
+      #  • Prefer github.event.before (the previous SHA)
+      #  • If unavailable (e.g., force-push or first commit), fall back to HEAD^ if possible,
+      #    else to the empty tree, which treats everything as "added".
+      - name: Determine base ref for push
+        id: base
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}   # previous commit SHA on push events
+        run: |
+          set -euo pipefail
+          BEFORE="${BEFORE:-}"
+          if [[ -n "$BEFORE" && "$BEFORE" != "0000000000000000000000000000000000000000" ]]; then
+            echo "base=$BEFORE" >> "$GITHUB_OUTPUT"
+          else
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              echo "base=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+            else
+              # empty tree object (treats all files as additions)
+              echo "base=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Run Dependency Review comparing base→head on push
+      - name: Dependency Review (push)
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          base-ref: ${{ steps.base.outputs.base }}
+          head-ref: ${{ steps.base.outputs.head }}
+          comment-summary-in-pr: never      # not a PR; no comment
+          # Optional enforcement on push as well:
+          # fail-on-severity: moderate
+          # fail-on-cvss: 7
+          # deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later

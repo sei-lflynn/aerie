@@ -1,0 +1,198 @@
+# OSV-Scanner (hardened, pinned, least-privilege)
+# =============================================================================
+# PURPOSE
+#   Run Google's OSV-Scanner v2 against your repository to detect known
+#   vulnerabilities in dependencies, produce a SARIF report, and publish
+#   the results to GitHub Code Scanning (Security tab).
+#
+# DESIGN CHOICES (security & reliability)
+#   • Default-deny permissions at the workflow level; jobs elevate only what they need.
+#   • SHA-pinned third-party actions for reproducibility and tamper resistance.
+#   • Explicit runner version (ubuntu-24.04) for deterministic behavior.
+#   • Concurrency cancels superseded runs and prevents CI pile-ups.
+#   • Timeouts cap spend and fail fast.
+#   • Egress hardening starts in 'audit'; later switch to 'block' with an allowlist.
+#   • Two-job split: the scan job is read-only; only the uploader can write security events.
+#   • Guarded artifact flow: upload artifact only if a SARIF was generated; uploader runs only then.
+#
+# OPERATIONAL NOTES
+#   • OSV v2 command is `osv-scanner scan ...`.
+#   • `--allow-no-lockfiles` avoids failing the run when no manifests are present.
+#     Remove it once your repo consistently contains lockfiles/SBOMs.
+#   • To gate merges on findings, add `--fail-on=all` (or `--severity=HIGH,CRITICAL`)
+#     and remove `continue-on-error: true` in the scan step.
+
+name: OSV-Scanner
+
+on:
+  # Scan proposed changes so reviewers see issues before merge.
+  pull_request:
+    branches: [ "main" ]                             # Adjust to your default branch naming.
+    paths:                                           # Narrow paths to dependency manifests to cut cost.
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/pnpm-lock.yaml"
+      - "**/yarn.lock"
+      - "**/requirements*.txt"
+      - "**/pyproject.toml"
+      - "**/poetry.lock"
+      - "**/Pipfile.lock"
+      - "**/go.mod"
+      - "**/go.sum"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/pom.xml"
+      - "**/build.gradle*"
+      - "**/Gemfile.lock"
+      - "**/composer.lock"
+      - "**/mix.lock"
+      - "**/*.csproj"
+      - "**/*.fsproj"
+      - ".github/workflows/osv-scanner.yml"
+
+  # Merge queue batches (optional): catch issues in the combined set scheduled to merge.
+  merge_group:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/osv-scanner.yml"
+
+  # Cover direct pushes to main (fast-forwards, admin merges, etc.).
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/osv-scanner.yml"
+
+  # Periodic drift check to surface newly disclosed issues against existing locks.
+  schedule:
+    - cron: "18 6 * * 1"                             # Mondays 06:18 UTC
+
+  # Manual trigger for ad-hoc scans.
+  workflow_dispatch: {}
+
+# Prevent CI pile-ups: cancel older in-flight runs for the same ref/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny at the workflow level. Jobs will elevate minimally.
+permissions:
+  contents: read
+
+jobs:
+  # ───────────────────────────────────────── Scan job (read-only) ─────────────────────────────────────────
+  osv-scan:
+    name: OSV scan → SARIF
+    runs-on: ubuntu-24.04                              # Explicit OS for reproducibility.
+    timeout-minutes: 20                                 # Bound execution time.
+    permissions:
+      contents: read                                    # Only needs to read repo content.
+
+    # Job-level env keeps secrets out of `if:` expressions and centralizes config.
+    env:
+      OSV_VERSION: v2.2.2                               # Pin OSV-Scanner major/minor on purpose.
+      SARIF_OUT: osv.sarif                              # Write SARIF to repo root → no mkdir needed.
+
+    # Expose whether a SARIF exists so the upload job can decide to run.
+    outputs:
+      has_sarif: ${{ steps.check.outputs.has_sarif }}
+
+    steps:
+      # Lock down outbound traffic observation. After a few runs, switch to:
+      #   egress-policy: block
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     uploads.github.com:443
+      #     objects.githubusercontent.com:443
+      #     github.com:443
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911  # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Read-only checkout; do not persist credentials (we never push).
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8              # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Install a pinned Go toolchain to install a pinned OSV-Scanner v2.
+      - name: Setup Go (pinned)
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5              # v5.5.0
+        with:
+          go-version: "1.23.x"
+
+      # Install OSV-Scanner v2 at the pinned tag and verify it runs.
+      - name: Install OSV-Scanner v2 (pinned)
+        run: |
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"              # Put the Go bin directory on PATH.
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@${OSV_VERSION}
+          osv-scanner --version
+
+      # Run the scan:
+      #   • `scan -r .` recursively searches for supported lockfiles/SBOMs.
+      #   • `--allow-no-lockfiles` converts “no manifests found” into success (exit 0).
+      #     Remove this once your repo always has manifests; or replace with explicit `-L` flags.
+      #   • `continue-on-error: true` ensures we still publish SARIF if vulnerabilities are found.
+      - name: Run OSV-Scanner → SARIF
+        continue-on-error: true
+        run: |
+          osv-scanner scan -r . \
+            --allow-no-lockfiles \
+            --format sarif \
+            --output "${SARIF_OUT}"
+
+      # Record whether a SARIF file exists. The next step and the next job use this signal.
+      - name: Check SARIF exists
+        id: check
+        shell: bash
+        run: |
+          if [[ -s "${SARIF_OUT}" ]]; then
+            echo "has_sarif=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_sarif=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Keep an auditable copy with an explicit retention window.
+      - name: Upload SARIF artifact (if present)
+        if: always() && steps.check.outputs.has_sarif == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02      # v4.6.2
+        with:
+          name: osv-sarif
+          path: ${{ env.SARIF_OUT }}
+          retention-days: 14
+
+  # ───────────────────────────────────── Upload job (least privilege) ─────────────────────────────────────
+  upload-sarif:
+    name: Upload OSV SARIF to Code Scanning
+    needs: osv-scan
+    if: ${{ needs.osv-scan.outputs.has_sarif == 'true' }}   # Only run if a SARIF was produced.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write                                 # Only this job can write to Security tab.
+      actions: read                                          # Useful in private repos for status.
+
+    steps:
+      # Mirror hardening in the uploader as well.
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911  # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Retrieve the artifact created by the scan job.
+      - name: Download SARIF artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0    # v5.0.0
+        with:
+          name: osv-sarif
+          path: .
+
+      # Publish the SARIF to the Security tab. The category label keeps tools distinct in the UI.
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498  # v3.29.11
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
