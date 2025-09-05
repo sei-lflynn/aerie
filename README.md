@@ -64,6 +64,7 @@ To get started using Aerie for the first time please do our [fast track tutorial
 ## Want to help?
 
 Want to file a bug, contribute some code, or improve documentation? Excellent! Read up on our guidelines for [contributing][contributing]. If you are a developer you can get started quickly by reading the [developer documentation][dev].
+More text
 
 ## License
 
