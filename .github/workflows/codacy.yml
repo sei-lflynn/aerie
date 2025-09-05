@@ -1,0 +1,206 @@
+# Codacy Security Scan → Split SARIF runs (hardened, pinned, least-privilege)
+# =============================================================================
+# What this workflow does (high level):
+#   1) Checks out your code with read-only permissions and no persisted creds.
+#   2) Runs Codacy Analysis CLI (via pinned action) to generate SARIF results.
+#   3) Splits MULTI-run SARIF into SINGLE-run SARIF files (one per analyzer).
+#   4) Uploads each SINGLE-run SARIF to GitHub Code Scanning with a unique category.
+#   5) Stores the split SARIFs as a build artifact for auditing.
+#
+# Why we split:
+#   • GitHub Code Scanning now requires one SARIF "run" per upload+category.
+#     Codacy often outputs multiple runs in a single SARIF (one per tool).
+#     Splitting ensures every upload contains exactly one run, avoiding rejections.
+#
+# Best practices implemented:
+#   • Default-deny permissions at the workflow level; jobs elevate only what they need.
+#   • Pin third-party actions to commit SHAs (reproducible, tamper resistant).
+#   • Guard untrusted PRs (use pull_request, not pull_request_target).
+#   • Concurrency cancels superseded runs to prevent CI pile-ups.
+#   • Timeouts cap spend and fail fast.
+#   • Harden network egress (start in audit; later flip to block + allowlist).
+#   • Scoped checkout creds (no pushes from this workflow).
+#   • Explicit runner (ubuntu-24.04) for reproducibility.
+#   • Results are auditable (artifact with retention).
+#
+# Tuning notes:
+#   • Narrow the 'paths:' filters below to save CI minutes (keep only your languages/manifests).
+#   • Decide gating: keep informational (continue-on-error) or fail PRs on findings.
+
+name: Codacy Security Scan
+
+on:
+  # Run on PRs to surface issues before merge.
+  pull_request:
+    branches: [ "main" ]                 # Tune to your branching model.
+    paths:
+      - "**/*"                           # TIP: Narrow to your actual ecosystems for speed.
+      - ".github/workflows/codacy.yml"
+
+  # Also run on pushes to main so direct commits are covered.
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/codacy.yml"
+
+  # Optional weekly drift check; adjust cadence as needed.
+  schedule:
+    - cron: "16 7 * * 2"
+
+  # Manual trigger (useful during setup/testing).
+  workflow_dispatch:
+
+# Cancel older in-flight runs for the same ref/PR (prevents CI pile-ups).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny at the workflow level (read-only).
+permissions:
+  contents: read
+
+jobs:
+  # ────────────────────────────── Job 1: Scan + Split ──────────────────────────────
+  codacy-scan:
+    name: Codacy scan → split SARIF
+    runs-on: ubuntu-24.04                 # Explicit runner for reproducibility.
+    timeout-minutes: 20                   # Upper bound for runtime.
+    # Least privilege: only what's needed to read the repo.
+    permissions:
+      contents: read
+      actions: read                       # Harmless; some setups use it for status reads.
+
+    # Make outputs available to the next job (JSON array describing per-run SARIFs).
+    outputs:
+      sarif_files: ${{ steps.split.outputs.sarif_files }}
+
+    env:
+      # Single source of truth for initial Codacy SARIF location.
+      SARIF_OUT: results.sarif
+
+    steps:
+      # Harden the ephemeral runner’s egress. Start with audit to learn endpoints;
+      # once stable, switch to 'block' and add a tight allowlist (see below).
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+          # Later, prefer:
+          # egress-policy: block
+          # allowed-endpoints: >
+          #   api.github.com:443
+          #   uploads.github.com:443
+          #   objects.githubusercontent.com:443
+          #   github.com:443
+          #   ghcr.io:443
+
+      # Checkout with no persisted credentials (we don’t push).
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0                  # Full history (safe default, some tools use blame).
+
+      # Run Codacy Analysis CLI via pinned action.
+      # Keep the step green (continue-on-error + very high max-allowed-issues) so we ALWAYS upload SARIF.
+      - name: Run Codacy Analysis CLI
+        continue-on-error: true           # Let GitHub enforce gates; ensures upload still runs.
+        uses: codacy/codacy-analysis-cli-action@562ee3e92b8e92df8b67e0a5ff8aa8e261919c08 # v4.4.7
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}   # Optional: if you have a Codacy repo token.
+          verbose: true
+          format: sarif
+          output: ${{ env.SARIF_OUT }}
+          gh-code-scanning-compat: true
+          max-allowed-issues: 2147483647  # Keep CI green; Code Scanning handles gating.
+        # If you want to FAIL the job on findings: remove continue-on-error and lower max-allowed-issues.
+
+      # Split MULTI-run SARIF → many SINGLE-run SARIFs (one per analyzer) under ./reports.
+      # Rationale: GitHub requires one run per upload+category (policy mid-2025).
+      - name: Split SARIF into single-run files
+        id: split
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          if [[ ! -s "${SARIF_OUT}" ]]; then
+            echo "sarif_files=[]" >> "$GITHUB_OUTPUT"
+            echo "No SARIF produced; skipping split."
+            exit 0
+          fi
+          python - <<'PY'
+          import json, os, re, pathlib
+          sarif = os.environ.get("SARIF_OUT", "results.sarif")
+          outdir = pathlib.Path("reports"); outdir.mkdir(parents=True, exist_ok=True)
+          files = []
+          with open(sarif, "r", encoding="utf-8") as f:
+            data = json.load(f)
+          runs = data.get("runs", [])
+          for i, run in enumerate(runs, 1):
+            tool = ((run.get("tool") or {}).get("driver") or {})
+            name = tool.get("name") or f"run{i}"
+            slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-").lower() or f"run{i}"
+            out = {
+              "version": data.get("version","2.1.0"),
+              "$schema": data.get("$schema","https://json.schemastore.org/sarif-2.1.0.json"),
+              "runs": [run]
+            }
+            path = outdir / f"codacy-{slug}.sarif"
+            with open(path, "w", encoding="utf-8") as wf:
+              json.dump(out, wf, ensure_ascii=False)
+            files.append({"file": str(path), "category": f"codacy-{slug}"})
+          # Emit a single-line JSON array describing the split files.
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as go:
+            go.write("sarif_files=" + json.dumps(files) + "\n")
+          print(f"Split into {len(files)} file(s)")
+          PY
+
+      # Archive the split SARIFs for auditing and for the next job to download.
+      - name: Upload split SARIFs as artifact
+        if: always() && hashFiles('reports/*.sarif') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: codacy-sarif-split
+          path: reports/*.sarif
+          retention-days: 14              # Auditable window; tune to policy.
+
+  # ───────────────────────────── Job 2: Upload per-run SARIF ─────────────────────────────
+  upload-to-code-scanning:
+    name: Upload single-run SARIFs
+    needs: codacy-scan
+    # Only run if there are split files listed in the previous job's output.
+    if: ${{ needs.codacy-scan.outputs.sarif_files != '' && needs.codacy-scan.outputs.sarif_files != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Least privilege: this job alone needs 'security-events: write' to upload SARIF.
+    permissions:
+      contents: read
+      security-events: write
+      actions: read                       # Required in private repos for upload action status.
+
+    strategy:
+      fail-fast: false
+      matrix:
+        item: ${{ fromJson(needs.codacy-scan.outputs.sarif_files) }}
+        # Each "item" is {"file":"reports/codacy-<tool>.sarif","category":"codacy-<tool>"}
+
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Pull down the split SARIFs created in Job 1.
+      - name: Download split SARIFs
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: codacy-sarif-split
+          path: reports
+
+      # Upload ONE run per upload+category, per GitHub policy.
+      - name: Upload SARIF (single run)
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: ${{ matrix.item.file }}
+          category:   ${{ matrix.item.category }}
