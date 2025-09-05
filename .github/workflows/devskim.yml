@@ -1,0 +1,141 @@
+# DevSkim (hardened, pinned, least-privilege) — PRs, pushes, manual, weekly
+# =============================================================================
+# PURPOSE (read this first)
+# -----------------------------------------------------------------------------
+# DevSkim is a lightweight static analysis tool from Microsoft that looks for
+# security issues in source code. This workflow:
+#   • Runs DevSkim on your repository and writes a SARIF report
+#   • Uploads the SARIF to GitHub’s Code Scanning (Security tab)
+#
+# WHY THIS LAYOUT (security + reliability best practices)
+# -----------------------------------------------------------------------------
+#   • Default-deny permissions at the workflow level (read-only by default)
+#   • Only the uploader job gets permission to write security events
+#   • Every third-party action is pinned to a specific commit SHA (no “latest”)
+#   • Concurrency cancels older superseded runs (fewer pile-ups on busy PRs)
+#   • Timeouts cap spend and prevent hours-long hangs
+#   • Egress hardening audits outbound network calls (later: block + allowlist)
+#   • Checkout without persisted credentials (we never push here)
+#
+# HOW TO READ THIS FILE
+# -----------------------------------------------------------------------------
+# You’ll see notes sprinkled throughout. They define each block,
+# explain why it exists, and suggest safe tweaks.
+
+name: DevSkim
+
+on:
+  # Run on PRs so reviewers see issues before merge.
+  pull_request:
+    branches: [ "main" ]                       #  note: adjust to your default branch
+    paths:
+      - "**/*"                                 #  note: narrow for speed (e.g., "src/**", "lib/**")
+      - ".github/workflows/devskim.yml"        # Re-run when this workflow changes
+
+  # Also run on pushes to main (covers direct commits / fast-forwards).
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/devskim.yml"
+
+  # Button in the Actions tab for ad-hoc/manual runs.
+  workflow_dispatch: {}
+
+  # Optional weekly run to catch drift. Adjust cadence to taste.
+  schedule:
+    - cron: "42 23 * * 2"                      # Tuesdays 23:42 UTC
+
+# Cancel older in-flight runs for the same PR/ref (prevents CI pile-ups).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny at the workflow level. Jobs will elevate minimally.
+permissions:
+  contents: read
+
+jobs:
+  # ────────────────────────────────── Job 1: Scan (read-only) ──────────────────────────────────
+  devskim-scan:
+    name: DevSkim scan → SARIF
+    runs-on: ubuntu-24.04                      #  note: fixed runner → repeatable builds
+    timeout-minutes: 15                        #  note: fail fast if something hangs
+    permissions:
+      contents: read                           #  note: only needs to read code in this job
+
+    steps:
+      # Harden outbound network. Start with "audit" to see what calls happen.
+      # After several clean runs, flip to:
+      #   egress-policy: block
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     uploads.github.com:443
+      #     objects.githubusercontent.com:443
+      #     github.com:443
+      - name: Harden the runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Check out your repository at this commit. We disable persisted credentials
+      # because this workflow never pushes back to the repo (least privilege).
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0                       #  note: full history is a safe default
+
+      # Run DevSkim. The action scans your repo and writes "devskim-results.sarif"
+      # in the workspace root by default. You can pass extra CLI args if needed:
+      #   with:
+      #     additional-args: "--ignore-globs vendor/**"
+      - name: Run DevSkim scanner
+        uses: microsoft/DevSkim-Action@4b5047945a44163b94642a1cecc0d93a3f428cc6 # v1.0.16
+
+      # Upload the SARIF so:
+      #   1) We keep an auditable copy with a retention policy
+      #   2) The next job can download and upload it to the Security tab
+      # "if: always()" ensures we capture results even if DevSkim finds issues
+      # and returns a non-zero exit code.
+      - name: Upload DevSkim SARIF as artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devskim-sarif
+          path: devskim-results.sarif
+          retention-days: 14                   #  note: adjust to org policy
+
+  # ──────────────────────────────── Job 2: Upload (least privilege) ────────────────────────────────
+  upload-sarif:
+    name: Upload DevSkim SARIF to Code Scanning
+    needs: devskim-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Only this job can write security events (least privilege).
+    permissions:
+      contents: read
+      security-events: write
+      actions: read                            #  note: helpful in private repos for status; safe to keep
+
+    steps:
+      # Harden outbound network here too (mirrors the first job).
+      - name: Harden the runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Download the SARIF that Job 1 uploaded. The "name" must match the upload step.
+      - name: Download SARIF artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: devskim-sarif
+          path: .
+
+      # Upload SARIF into GitHub’s Code Scanning (Security tab).
+      # The 'category' helps distinguish different tools in the UI.
+      - name: Upload DevSkim scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: devskim-results.sarif
+          category: devskim

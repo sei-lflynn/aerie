@@ -1,0 +1,232 @@
+# Semgrep (hardened, pinned, least-privilege) — PRs, pushes, manual, nightly
+# =============================================================================
+# What this workflow does (high level):
+#   1) Job "semgrep-scan": installs a pinned Semgrep CLI and runs a scan that
+#      always writes SARIF (semgrep.sarif). If a Semgrep App token is present,
+#      it uses `semgrep ci` (org policies). Otherwise it uses `semgrep scan`
+#      with curated registry rules (`p/ci`). It saves SARIF as an artifact.
+#   2) Job "upload-sarif": uploads the SARIF to GitHub Code Scanning.
+#
+# Why this structure:
+#   • Separate jobs: only the uploader gets `security-events: write` (least privilege).
+#   • Everything is pinned to commit SHAs for reproducibility and tamper resistance.
+#   • Concurrency + timeouts: prevent CI pile-ups and cap spend.
+#   • Egress hardening: start in audit; later flip to block + allowlist.
+#   • No `latest` containers; we pin Semgrep via pip to a fixed version.
+
+name: Semgrep
+
+on:
+  # Manual button in the Actions tab (good for testing)
+  workflow_dispatch: {}
+
+  # Scan proposed changes safely (no secrets shared with forks by default)
+  pull_request:
+    branches: [ "main" ]                 # tune to your model
+    paths:
+      - "**/*"                           # narrow to your code paths to cut cost if desired
+      - ".github/workflows/semgrep.yml"
+
+  # Cover direct commits to main
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/semgrep.yml"
+
+  # Nightly drift check
+  schedule:
+    - cron: "16 6 * * *"                 # daily at 06:16 UTC
+
+# Cancel older in-flight runs on the same ref/PR (saves minutes; avoids pile-ups)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny at the workflow level (read-only). Jobs elevate minimally.
+permissions:
+  contents: read
+
+jobs:
+  # ────────────────────────────────── Job 1: Scan ──────────────────────────────────
+  semgrep-scan:
+    name: Semgrep scan → SARIF
+    runs-on: ubuntu-24.04                   # explicit runner for reproducibility
+    timeout-minutes: 20
+
+    # Least privilege: only needs to read the repo
+    permissions:
+      contents: read
+
+    # Central knobs
+    env:
+      # If set, enables Semgrep App (org policies, triage, PR comments if configured).
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      # Pin the CLI. Update intentionally and via PR review.
+      SEMGREP_VERSION: "1.134.0"
+      # SARIF output path (relative to workspace)
+      SARIF_FILE: "semgrep.sarif"
+
+    # Expose whether SARIF exists so the upload job can decide to run
+    outputs:
+      has_sarif: ${{ steps.check.outputs.has_sarif }}
+
+    steps:
+      # Harden egress. Start with audit to learn endpoints. Later switch to:
+      #   egress-policy: block
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     uploads.github.com:443
+      #     objects.githubusercontent.com:443
+      #     github.com:443
+      #     pypi.org:443
+      #     files.pythonhosted.org:443
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Checkout with no persisted credentials (we won’t push from this job)
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0                  # full history; useful if rules look at blame/history
+
+      # Set up Python (pinned) so we can install a specific Semgrep version
+      - name: Set up Python (exact patch)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12.5"
+
+      - name: Install Semgrep CLI (hash-locked; sdist-safe, two-phase)
+        shell: bash
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+          PIP_INDEX_URL: "https://pypi.org/simple"
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+
+          # 1) Resolve exact artifacts (Semgrep + build tools). Downloads all deps.
+          python -m pip download -d "$tmp" "semgrep==${SEMGREP_VERSION}" "setuptools" "wheel"
+
+          # 2) Create two lock files: build tools first, then everything else.
+          build="$tmp/build-req.txt"; : > "$build"
+          main="$tmp/main-req.txt";  : > "$main"
+
+          # Lock setuptools and wheel so sdists can build offline.
+          for n in setuptools wheel; do
+            f="$(ls -1 "$tmp"/$n-*.whl 2>/dev/null | sort | tail -n1 || true)"
+            if [ -n "$f" ]; then
+              h="$(sha256sum "$f" | awk '{print $1}')"
+              printf 'file://%s --hash=sha256:%s\n' "$f" "$h" >> "$build"
+            fi
+          done
+
+          # Lock all remaining artifacts (wheels + sdists). Exclude the build wheels above.
+          while IFS= read -r f; do
+            base="$(basename "$f")"
+            case "$base" in setuptools-*.whl|wheel-*.whl) continue;; esac
+            h="$(sha256sum "$f" | awk '{print $1}')"
+            printf 'file://%s --hash=sha256:%s\n' "$f" "$h" >> "$main"
+          done < <(find "$tmp" -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' -o -name '*.zip' \) | sort)
+
+          # 3) Install build tooling first (offline, hash-verified).
+          if [ -s "$build" ]; then
+            python -m pip install --no-index --require-hashes -r "$build"
+          fi
+
+          # 4) Install the rest offline; no build isolation so sdists use the local setuptools/wheel.
+          python -m pip install --no-index --require-hashes --no-build-isolation -r "$main"
+
+          semgrep --version
+        timeout-minutes: 10
+
+      # Baseline for PRs so Semgrep can focus on diffs (noise reduction).
+      # For pushes, skip baseline.
+      - name: Determine baseline commit (PRs only)
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}":"refs/remotes/origin/${{ github.event.pull_request.base.ref }}" || true
+            mb="$(git merge-base "HEAD" "refs/remotes/origin/${{ github.event.pull_request.base.ref }}")" || mb=""
+            echo "baseline=${mb}" >> "$GITHUB_OUTPUT"
+          else
+            echo "baseline=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Run Semgrep and write SARIF.
+      # If SEMGREP_APP_TOKEN is set → 'semgrep ci' (uses organization policies).
+      # Else → 'semgrep scan --config p/ci' (curated rules for CI).
+      # By default Semgrep exits 0 even with findings; to gate merges, add `--error`
+      # or configure blocking policies in Semgrep App.
+      - name: Run Semgrep (CI or CE) → SARIF
+        shell: bash
+        env:
+          SEMGREP_BASELINE_COMMIT: ${{ steps.base.outputs.baseline }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${SEMGREP_APP_TOKEN:-}" ]]; then
+            semgrep ci --sarif --output "${SARIF_FILE}"
+          else
+            semgrep scan --config p/ci --sarif --output "${SARIF_FILE}"
+          fi
+
+      # Verify we actually produced a SARIF (guards the upload job)
+      - name: Check SARIF exists
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -s "${SARIF_FILE}" ]]; then
+            echo "has_sarif=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_sarif=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Keep an auditable copy with defined retention
+      - name: Upload SARIF as artifact
+        if: always() && steps.check.outputs.has_sarif == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: semgrep-sarif
+          path: ${{ env.SARIF_FILE }}
+          retention-days: 14
+
+  # ────────────────────────────────── Job 2: Upload ──────────────────────────────────
+  upload-sarif:
+    name: Upload SARIF to Code Scanning
+    needs: semgrep-scan
+    if: ${{ needs.semgrep-scan.outputs.has_sarif == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    # Least privilege: only the uploader can write security events
+    permissions:
+      contents: read
+      security-events: write
+      actions: read                      # useful in private repos for status
+
+    steps:
+      # Harden egress in the uploader too
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Pull the SARIF produced by Job 1
+      - name: Download SARIF artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: semgrep-sarif
+          path: .
+
+      # Upload to the Security tab. Category keeps tools distinct.
+      - name: Upload SARIF to GitHub Security Dashboard
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep

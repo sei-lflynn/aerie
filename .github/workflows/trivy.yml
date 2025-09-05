@@ -1,0 +1,195 @@
+# Trivy (hardened, pinned, least-privilege) — PRs, pushes, manual, weekly
+# =============================================================================
+# What this workflow does (big picture):
+#   1) Job "trivy-scan": runs three focused Trivy scans against the repository
+#      and writes THREE separate SARIF files:
+#        • reports/trivy-vuln.sarif   → dependency/package vulnerabilities
+#        • reports/trivy-config.sarif → IaC/config misconfigurations
+#        • reports/trivy-secret.sarif → hard-coded secrets
+#      It then uploads these SARIFs as a build artifact.
+#   2) Job "upload-sarif": downloads the SARIFs and uploads EACH ONE to GitHub
+#      Code Scanning under a distinct category. Only this job can write security events.
+#
+# Why this structure (best practices applied):
+#   • Default-deny permissions at the workflow level; elevate only in the upload job.
+#   • SHA-pinned third-party actions for tamper resistance and reproducibility.
+#   • Explicit runner version (ubuntu-24.04) for deterministic behavior.
+#   • Concurrency to cancel superseded runs and avoid CI pile-ups.
+#   • Timeouts to cap spend and fail fast.
+#   • Egress hardening: start in 'audit'; later switch to 'block' with a tight allowlist.
+#   • Separate SARIF per scanner (one run per upload+category); this is future-proof.
+#
+# Maintenance guidance (for a freshman engineer):
+#   • Keep pins updated via Dependabot (github-actions ecosystem). Merge updates after review.
+#   • If scans are too noisy, narrow the 'on.paths' filters to only relevant files.
+#   • To ENFORCE failures on findings, remove exit-code overrides and/or set severity thresholds.
+#   • To speed up runs, consider enabling Trivy's cache or using a self-hosted DB mirror later.
+
+name: Trivy
+
+on:
+  # Scan proposed changes on PRs (safe: secrets not exposed to forks by default)
+  pull_request:
+    branches: [ "main" ]                 # ← adjust to your default branch naming
+    paths:
+      - "**/*"                           # ← narrow to: Dockerfile, **/*.yaml, charts/**, etc. to cut cost
+      - ".github/workflows/trivy.yml"
+
+  # Cover direct commits to main (e.g., fast-forwards/merges)
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*"
+      - ".github/workflows/trivy.yml"
+
+  # Manual trigger for testing or ad-hoc scans
+  workflow_dispatch: {}
+
+  # Optional weekly drift check (adjust cadence to your policy)
+  schedule:
+    - cron: "27 16 * * 0"                # Sundays 16:27 UTC
+
+# Cancel older in-flight runs on the same ref/PR (prevents CI pile-ups)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Default-deny at the workflow level (read-only). Jobs elevate minimally.
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────── Job 1: Scan (read-only) ────────────────────────────
+  trivy-scan:
+    name: Trivy Full Scan → SARIFs
+    runs-on: ubuntu-24.04                 # Explicit runner for reproducibility
+    timeout-minutes: 20                   # Cap runtime to avoid hang/spend
+    permissions:
+      contents: read                      # Only needs to read code
+
+    steps:
+      # Harden network egress. Start with 'audit' to learn endpoints safely.
+      # After a few clean runs, switch to:
+      #   egress-policy: block
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     uploads.github.com:443
+      #     objects.githubusercontent.com:443
+      #     github.com:443
+      #     ghcr.io:443          # Trivy DB often comes from GHCR
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Checkout with no persisted credentials (we never push in this workflow)
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0                  # Full history (safe default)
+
+      # Create a reports directory to keep outputs organized
+      - name: Prepare reports directory
+        shell: bash
+        run: mkdir -p reports
+
+      # ── Scan 1: Vulnerabilities (dependencies/packages) ───────────────────────────
+      # Notes:
+      #   • scan-type: fs  → analyze the repository filesystem
+      #   • scanners: vuln → the vulnerability scanner
+      #   • format: sarif  → output for GitHub Code Scanning ingestion
+      #   • ignore-unfixed: true → reduce noise from issues without available fixes
+      #   • exit-code: "0" → keep the job green so we always upload SARIF
+      - name: Trivy vuln scan → SARIF
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # pinned commit
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: sarif
+          output: reports/trivy-vuln.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          ignore-unfixed: true
+          exit-code: "0"
+          # To enforce blocking on high/critical later, remove exit-code and rely on Trivy defaults.
+
+      # ── Scan 2: IaC/config misconfigurations ─────────────────────────────────────
+      - name: Trivy config scan → SARIF
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # pinned commit
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: config
+          format: sarif
+          output: reports/trivy-config.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      # ── Scan 3: Secrets (hard-coded credentials, tokens, etc.) ───────────────────
+      - name: Trivy secret scan → SARIF
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # pinned commit
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: sarif
+          output: reports/trivy-secret.sarif
+          exit-code: "0"
+
+      # Keep an auditable copy of all results with explicit retention
+      - name: Upload SARIFs as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-sarif
+          path: reports/*.sarif
+          retention-days: 14
+
+  # ─────────────────────────── Job 2: Upload (least-privilege) ───────────────────────────
+  upload-sarif:
+    name: Upload Trivy SARIFs to Code Scanning
+    needs: trivy-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Only this job can write to the Security tab (least privilege)
+    permissions:
+      contents: read
+      security-events: write
+      actions: read                     # Helpful in private repos for status
+
+    steps:
+      # Harden egress in the uploader as well
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      # Retrieve the SARIF files from Job 1
+      - name: Download SARIF artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: trivy-sarif
+          path: reports
+
+      # Upload each SARIF with a DISTINCT category.
+      # This keeps tools separated in the Security UI and aligns with the “one run per upload” rule.
+      - name: Upload vuln SARIF
+        if: hashFiles('reports/trivy-vuln.sarif') != ''
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: reports/trivy-vuln.sarif
+          category: trivy-vuln
+
+      - name: Upload config SARIF
+        if: hashFiles('reports/trivy-config.sarif') != ''
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: reports/trivy-config.sarif
+          category: trivy-config
+
+      - name: Upload secret SARIF
+        if: hashFiles('reports/trivy-secret.sarif') != ''
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        with:
+          sarif_file: reports/trivy-secret.sarif
+          category: trivy-secret
